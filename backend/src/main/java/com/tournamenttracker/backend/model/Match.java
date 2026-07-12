@@ -33,7 +33,7 @@ public class Match {
     @Column(name = "group_id")
     private Long groupId;
 
-    @Column(name = "match_date", nullable = false)
+    @Column(name = "match_date")
     private LocalDate matchDate;
 
     @Column(name = "start_time")

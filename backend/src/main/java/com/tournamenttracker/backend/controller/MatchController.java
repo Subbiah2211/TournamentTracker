@@ -152,8 +152,7 @@ public class MatchController {
     @PostMapping("/matches")
     public ResponseEntity<?> createMatch(@RequestBody Match match) {
         if (match.getDivisionId() == null || match.getTournamentId() == null ||
-            match.getParticipant1() == null || match.getParticipant2() == null ||
-            match.getMatchDate() == null) {
+            match.getParticipant1() == null || match.getParticipant2() == null) {
             Map<String, String> err = new HashMap<>();
             err.put("error", "Mandatory fields are missing");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err);

@@ -218,7 +218,6 @@ export default function Matches({ tournamentId, user, onNavigate }) {
     if (formParticipant1 && formParticipant2 && formParticipant1 === formParticipant2) {
       errors.participant2 = 'Participant 2 must be different from Participant 1';
     }
-    if (!matchDate) errors.matchDate = 'Match Date is required';
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -237,7 +236,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
       tournamentId: parseInt(tournamentId),
       participant1: parseInt(formParticipant1),
       participant2: parseInt(formParticipant2),
-      matchDate,
+      matchDate: matchDate || null,
       startTime: startTime || null,
       endTime: endTime || null
     };
@@ -595,7 +594,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
 
               {/* Match Date */}
               <div className="form-group">
-                <label htmlFor="mDate" className="form-label">Match Date *</label>
+                <label htmlFor="mDate" className="form-label">Match Date</label>
                 <input
                   id="mDate"
                   type="date"
@@ -603,9 +602,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                   value={matchDate}
                   onChange={(e) => setMatchDate(e.target.value)}
                   disabled={formLoading}
-                  required
                 />
-                {validationErrors.matchDate && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.matchDate}</span>}
               </div>
 
               {/* Start/End Time */}
