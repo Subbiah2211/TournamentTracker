@@ -7,6 +7,12 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
   const [selectedMatchId, setSelectedMatchId] = useState('');
   const [matchDetails, setMatchDetails] = useState(null);
 
+  // Match details states
+  const [matchDate, setMatchDate] = useState('');
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+  const [round, setRound] = useState('');
+
   // Score states
   const [set1P1, setSet1P1] = useState('');
   const [set1P2, setSet1P2] = useState('');
@@ -115,6 +121,10 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     if (!selectedMatchId) {
       setMatchDetails(null);
       clearScores();
+      setMatchDate('');
+      setStartTime('');
+      setEndTime('');
+      setRound('');
       return;
     }
 
@@ -124,13 +134,21 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         setFormError('');
         setValidationErrors({});
 
-        // If not already set by query pre-population
-        if (!matchDetails || matchDetails.matchId !== parseInt(selectedMatchId)) {
+        let activeMatchData = matchDetails;
+        if (!activeMatchData || activeMatchData.matchId !== parseInt(selectedMatchId)) {
           const matchResp = await fetch(`http://localhost:8080/api/matches/${selectedMatchId}`);
           if (matchResp.ok) {
             const matchData = await matchResp.json();
             setMatchDetails(matchData);
+            activeMatchData = matchData;
           }
+        }
+
+        if (activeMatchData) {
+          setMatchDate(activeMatchData.matchDate || '');
+          setStartTime(activeMatchData.startTime || '');
+          setEndTime(activeMatchData.endTime || '');
+          setRound(activeMatchData.round !== null && activeMatchData.round !== undefined ? String(activeMatchData.round) : '');
         }
 
         // Fetch result for the match
@@ -188,44 +206,52 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     if (!selectedMatchId) errors.match = 'Match is required';
 
     if (selectedMatchId) {
-      // Set 1 validation
-      if (set1P1 === '' || set1P2 === '') {
-        errors.set1 = 'Set 1 scores are required';
-      } else if (isNaN(set1P1) || isNaN(set1P2) || parseInt(set1P1) < 0 || parseInt(set1P2) < 0) {
-        errors.set1 = 'Scores must be positive numbers';
-      } else if (parseInt(set1P1) === parseInt(set1P2)) {
-        errors.set1 = 'Set 1 cannot be a tie';
-      }
+      const hasScores = set1P1 !== '' || set1P2 !== '' || set2P1 !== '' || set2P2 !== '' || set3P1 !== '' || set3P2 !== '';
 
-      // Set 2 validation
-      if (set2P1 === '' || set2P2 === '') {
-        errors.set2 = 'Set 2 scores are required';
-      } else if (isNaN(set2P1) || isNaN(set2P2) || parseInt(set2P1) < 0 || parseInt(set2P2) < 0) {
-        errors.set2 = 'Scores must be positive numbers';
-      } else if (parseInt(set2P1) === parseInt(set2P2)) {
-        errors.set2 = 'Set 2 cannot be a tie';
-      }
+      if (hasScores) {
+        // Set 1 validation
+        if (set1P1 === '' || set1P2 === '') {
+          errors.set1 = 'Set 1 scores are required';
+        } else if (isNaN(set1P1) || isNaN(set1P2) || parseInt(set1P1) < 0 || parseInt(set1P2) < 0) {
+          errors.set1 = 'Scores must be positive numbers';
+        } else if (parseInt(set1P1) === parseInt(set1P2)) {
+          errors.set1 = 'Set 1 cannot be a tie';
+        }
 
-      // If sets are split (1-1), Set 3 is required
-      if (set1P1 !== '' && set1P2 !== '' && set2P1 !== '' && set2P2 !== '') {
-        const p1Set1Won = parseInt(set1P1) > parseInt(set1P2);
-        const p1Set2Won = parseInt(set2P1) > parseInt(set2P2);
+        // Set 2 validation
+        if (set2P1 === '' || set2P2 === '') {
+          errors.set2 = 'Set 2 scores are required';
+        } else if (isNaN(set2P1) || isNaN(set2P2) || parseInt(set2P1) < 0 || parseInt(set2P2) < 0) {
+          errors.set2 = 'Scores must be positive numbers';
+        } else if (parseInt(set2P1) === parseInt(set2P2)) {
+          errors.set2 = 'Set 2 cannot be a tie';
+        }
 
-        if (p1Set1Won !== p1Set2Won) {
-          // Split sets, check Set 3
-          if (set3P1 === '' || set3P2 === '') {
-            errors.set3 = 'Set 3 scores are required for a split match';
-          } else if (isNaN(set3P1) || isNaN(set3P2) || parseInt(set3P1) < 0 || parseInt(set3P2) < 0) {
-            errors.set3 = 'Scores must be positive numbers';
-          } else if (parseInt(set3P1) === parseInt(set3P2)) {
-            errors.set3 = 'Set 3 cannot be a tie';
-          }
-        } else {
-          // Decided in 2 sets, Set 3 must be empty or cleared
-          if (set3P1 !== '' || set3P2 !== '') {
-            errors.set3 = 'Match decided in 2 sets; Set 3 scores should be left empty';
+        // If sets are split (1-1), Set 3 is required
+        if (set1P1 !== '' && set1P2 !== '' && set2P1 !== '' && set2P2 !== '') {
+          const p1Set1Won = parseInt(set1P1) > parseInt(set1P2);
+          const p1Set2Won = parseInt(set2P1) > parseInt(set2P2);
+
+          if (p1Set1Won !== p1Set2Won) {
+            // Split sets, check Set 3
+            if (set3P1 === '' || set3P2 === '') {
+              errors.set3 = 'Set 3 scores are required for a split match';
+            } else if (isNaN(set3P1) || isNaN(set3P2) || parseInt(set3P1) < 0 || parseInt(set3P2) < 0) {
+              errors.set3 = 'Scores must be positive numbers';
+            } else if (parseInt(set3P1) === parseInt(set3P2)) {
+              errors.set3 = 'Set 3 cannot be a tie';
+            }
+          } else {
+            // Decided in 2 sets, Set 3 must be empty or cleared
+            if (set3P1 !== '' || set3P2 !== '') {
+              errors.set3 = 'Match decided in 2 sets; Set 3 scores should be left empty';
+            }
           }
         }
+      }
+
+      if (round && (isNaN(parseInt(round)) || parseInt(round) < 1)) {
+        errors.round = 'Round must be 1 or greater';
       }
     }
 
@@ -240,33 +266,57 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     if (!validateForm()) return;
 
     setFormLoading(true);
-    const payload = {
-      matchId: parseInt(selectedMatchId),
-      set1P1: parseInt(set1P1),
-      set1P2: parseInt(set1P2),
-      set2P1: parseInt(set2P1),
-      set2P2: parseInt(set2P2),
-      set3P1: set3P1 !== '' ? parseInt(set3P1) : null,
-      set3P2: set3P2 !== '' ? parseInt(set3P2) : null
-    };
+
+    const hasScores = set1P1 !== '' || set1P2 !== '' || set2P1 !== '' || set2P2 !== '' || set3P1 !== '' || set3P2 !== '';
 
     try {
-      const response = await fetch('http://localhost:8080/api/results', {
-        method: 'POST',
+      // 1. Update Match Details
+      const matchPayload = {
+        matchDate: matchDate || null,
+        startTime: startTime || null,
+        endTime: endTime || null,
+        round: round ? parseInt(round) : null
+      };
+
+      const matchResponse = await fetch(`http://localhost:8080/api/matches/${selectedMatchId}`, {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(matchPayload)
       });
 
-      if (response.ok) {
-        alert('Result successfully saved');
-        onNavigate('matches', { tournamentId });
-      } else {
-        const errorData = await response.json();
-        setFormError(errorData.error || 'Failed to save result. Please try again.');
+      if (!matchResponse.ok) {
+        throw new Error('Failed to update match details.');
       }
+
+      // 2. Update Scores if present
+      if (hasScores) {
+        const resultPayload = {
+          matchId: parseInt(selectedMatchId),
+          set1P1: parseInt(set1P1),
+          set1P2: parseInt(set1P2),
+          set2P1: parseInt(set2P1),
+          set2P2: parseInt(set2P2),
+          set3P1: set3P1 !== '' ? parseInt(set3P1) : null,
+          set3P2: set3P2 !== '' ? parseInt(set3P2) : null
+        };
+
+        const resultResponse = await fetch('http://localhost:8080/api/results', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(resultPayload)
+        });
+
+        if (!resultResponse.ok) {
+          const errorData = await resultResponse.json();
+          throw new Error(errorData.error || 'Failed to save match results.');
+        }
+      }
+
+      alert('Match details and results saved successfully');
+      onNavigate('matches', { tournamentId });
     } catch (err) {
       console.error(err);
-      setFormError('Failed to save result. Please check if the backend is running.');
+      setFormError(err.message || 'Failed to save changes. Please check if the backend is running.');
     } finally {
       setFormLoading(false);
     }
@@ -304,14 +354,16 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     );
   }
 
+  const currentDivision = divisions.find(d => String(d.id) === String(selectedDivisionId));
+
   return (
     <div className="matches-page-container" style={{ maxWidth: '800px' }}>
       <header className="page-header-section" style={{ textAlign: 'left', marginBottom: '2rem' }}>
         <h1 className="title" style={{ textAlign: 'left', background: 'linear-gradient(135deg, #fff 30%, var(--primary) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-          Add Match Result
+          Edit Match Details / Add Results
         </h1>
         <p className="subtitle" style={{ textAlign: 'left' }}>
-          Enter score results for completed tournament matches.
+          Edit match details (date, time, round) or enter/modify match scores.
         </p>
       </header>
 
@@ -366,19 +418,82 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           </div>
 
           {selectedMatchId && matchDetails && (
-            <div style={{ animation: 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)' }}>
-              <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet</h3>
-              
-              <div className="scores-grid" style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center', margin: '1.5rem 0' }}>
-                <div style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Participant</div>
-                <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 1</div>
-                <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 2</div>
-                <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 3 (if split)</div>
-
-                {/* Row for Participant 1 */}
-                <div style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {matchDetails.participant1Name}
+             <div style={{ animation: 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Match Details</h3>
+                <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                  <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                    <label htmlFor="mDate" className="form-label">Match Date</label>
+                    <input
+                      id="mDate"
+                      type="date"
+                      className="form-input"
+                      value={matchDate}
+                      onChange={(e) => setMatchDate(e.target.value)}
+                      disabled={formLoading}
+                    />
+                  </div>
+                  <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                    <label htmlFor="mRound" className="form-label">Round</label>
+                    <input
+                      id="mRound"
+                      type="number"
+                      min="1"
+                      placeholder="e.g. 1"
+                      className={`form-input ${validationErrors.round ? 'error' : ''}`}
+                      value={round}
+                      onChange={(e) => setRound(e.target.value)}
+                      disabled={formLoading}
+                    />
+                    {validationErrors.round && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.round}</span>}
+                  </div>
                 </div>
+                <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                  <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                    <label htmlFor="sTime" className="form-label">Start Time</label>
+                    <input
+                      id="sTime"
+                      type="time"
+                      className="form-input"
+                      value={startTime}
+                      onChange={(e) => setStartTime(e.target.value)}
+                      disabled={formLoading}
+                    />
+                  </div>
+                  <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                    <label htmlFor="eTime" className="form-label">End Time</label>
+                    <input
+                      id="eTime"
+                      type="time"
+                      className="form-input"
+                      value={endTime}
+                      onChange={(e) => setEndTime(e.target.value)}
+                      disabled={formLoading}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet</h3>
+                
+                <div className="scores-grid" style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center', margin: '1.5rem 0' }}>
+                  <div style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Participant</div>
+                  <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 1</div>
+                  <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 2</div>
+                  <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 3 (if split)</div>
+
+                  {/* Row for Participant 1 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                    <span style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                      {matchDetails.participant1Name}
+                    </span>
+                    {currentDivision?.divisionType === 'Doubles' && matchDetails.participant1PlayerNames && (
+                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                        {matchDetails.participant1PlayerNames}
+                      </span>
+                    )}
+                  </div>
                 <div>
                   <input
                     type="number"
@@ -417,8 +532,15 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
                 </div>
 
                 {/* Row for Participant 2 */}
-                <div style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {matchDetails.participant2Name}
+                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                  <span style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                    {matchDetails.participant2Name}
+                  </span>
+                  {currentDivision?.divisionType === 'Doubles' && matchDetails.participant2PlayerNames && (
+                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {matchDetails.participant2PlayerNames}
+                    </span>
+                  )}
                 </div>
                 <div>
                   <input
@@ -461,16 +583,17 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
               {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
               {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
               {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
-
-              <button
-                type="submit"
-                className="submit-btn"
-                disabled={formLoading}
-                style={{ marginTop: '1.5rem', minHeight: '48px', width: '100%' }}
-              >
-                {formLoading ? <div className="spinner" aria-label="Saving" /> : 'Save Result'}
-              </button>
             </div>
+
+            <button
+              type="submit"
+              className="submit-btn"
+              disabled={formLoading}
+              style={{ marginTop: '1.5rem', minHeight: '48px', width: '100%' }}
+            >
+              {formLoading ? <div className="spinner" aria-label="Saving" /> : 'Save Changes'}
+            </button>
+          </div>
           )}
         </form>
       </div>

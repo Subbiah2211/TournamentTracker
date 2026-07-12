@@ -6,6 +6,10 @@ import com.tournamenttracker.backend.model.Result;
 import com.tournamenttracker.backend.repository.MatchRepository;
 import com.tournamenttracker.backend.repository.ParticipantRepository;
 import com.tournamenttracker.backend.repository.ResultRepository;
+import com.tournamenttracker.backend.repository.TeamPlayerRepository;
+import com.tournamenttracker.backend.repository.PlayerRepository;
+import com.tournamenttracker.backend.model.TeamPlayer;
+import com.tournamenttracker.backend.model.Player;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -29,6 +33,29 @@ public class MatchController {
 
     @Autowired
     private ParticipantRepository participantRepository;
+
+    @Autowired
+    private TeamPlayerRepository teamPlayerRepository;
+
+    @Autowired
+    private PlayerRepository playerRepository;
+
+    private String getPlayerNamesForParticipant(Long participantId) {
+        if (participantId == null) return "";
+        return participantRepository.findById(participantId).map(p -> {
+            if ("Doubles".equalsIgnoreCase(p.getType()) || "Team".equalsIgnoreCase(p.getType())) {
+                List<TeamPlayer> teamPlayers = teamPlayerRepository.findByTeamId(p.getPlayerTeamId());
+                if (teamPlayers != null && !teamPlayers.isEmpty()) {
+                    List<Long> playerIds = teamPlayers.stream().map(TeamPlayer::getPlayerId).toList();
+                    List<Player> players = playerRepository.findAllById(playerIds);
+                    return players.stream()
+                            .map(player -> player.getFirstName() + " " + player.getLastName())
+                            .collect(Collectors.joining(" / "));
+                }
+            }
+            return "";
+        }).orElse("");
+    }
 
     @GetMapping("/divisions/{divisionId}/matches")
     public List<MatchResponse> getMatchesByDivision(@PathVariable Long divisionId) {
@@ -57,6 +84,8 @@ public class MatchController {
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
+            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
+            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
 
             // Fetch result if available
             Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
@@ -111,6 +140,8 @@ public class MatchController {
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
+            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
+            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
             Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
             if (resultOpt.isPresent()) {
                 res.setP1Status(resultOpt.get().getP1Status());
@@ -141,6 +172,8 @@ public class MatchController {
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
+            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
+            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
 
             Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
             if (resultOpt.isPresent()) {
@@ -149,6 +182,18 @@ public class MatchController {
                 res.setP2Status(r.getP2Status());
             }
             return ResponseEntity.ok(res);
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @PutMapping("/matches/{matchId}")
+    public ResponseEntity<?> updateMatch(@PathVariable Long matchId, @RequestBody Match updatedMatch) {
+        return matchRepository.findById(matchId).map(existingMatch -> {
+            existingMatch.setMatchDate(updatedMatch.getMatchDate());
+            existingMatch.setStartTime(updatedMatch.getStartTime());
+            existingMatch.setEndTime(updatedMatch.getEndTime());
+            existingMatch.setRound(updatedMatch.getRound());
+            Match saved = matchRepository.save(existingMatch);
+            return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
     }
 
@@ -466,6 +511,25 @@ public class MatchController {
 
         public void setRound(Integer round) {
             this.round = round;
+        }
+
+        private String participant1PlayerNames;
+        private String participant2PlayerNames;
+
+        public String getParticipant1PlayerNames() {
+            return participant1PlayerNames;
+        }
+
+        public void setParticipant1PlayerNames(String participant1PlayerNames) {
+            this.participant1PlayerNames = participant1PlayerNames;
+        }
+
+        public String getParticipant2PlayerNames() {
+            return participant2PlayerNames;
+        }
+
+        public void setParticipant2PlayerNames(String participant2PlayerNames) {
+            this.participant2PlayerNames = participant2PlayerNames;
         }
     }
 }

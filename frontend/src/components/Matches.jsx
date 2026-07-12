@@ -437,9 +437,22 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                         {displayedUpcoming.map((m) => (
                           <div key={m.matchId} className="match-card" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', transition: 'all 0.25s' }}>
                             <div className="match-card-line1" style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span>{m.participant1Name}</span>
-                              <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '400' }}>vs</span>
-                              <span>{m.participant2Name}</span>
+                              {canEditResults ? (
+                                <a
+                                  href={`/add-result?tournamentId=${tournamentId}&matchId=${m.matchId}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    onNavigate('add-result', { matchId: m.matchId });
+                                  }}
+                                  style={{ color: 'var(--primary)', textDecoration: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+                                  onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                  onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                >
+                                  {m.participant1Name} vs {m.participant2Name}
+                                </a>
+                              ) : (
+                                <span>{m.participant1Name} vs {m.participant2Name}</span>
+                              )}
                               {m.round && (
                                 <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
                                   Round {m.round}
@@ -486,9 +499,22 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                         {displayedCompleted.map((m) => (
                           <div key={m.matchId} className="match-card" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', transition: 'all 0.25s' }}>
                             <div className="match-card-line1" style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                              <span>{m.participant1Name}</span>
-                              <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '400' }}>vs</span>
-                              <span>{m.participant2Name}</span>
+                              {canEditResults ? (
+                                <a
+                                  href={`/add-result?tournamentId=${tournamentId}&matchId=${m.matchId}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    onNavigate('add-result', { matchId: m.matchId });
+                                  }}
+                                  style={{ color: 'var(--primary)', textDecoration: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+                                  onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                  onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                >
+                                  {m.participant1Name} vs {m.participant2Name}
+                                </a>
+                              ) : (
+                                <span>{m.participant1Name} vs {m.participant2Name}</span>
+                              )}
                               {m.round && (
                                 <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
                                   Round {m.round}
