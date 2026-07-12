@@ -223,6 +223,59 @@ export default function Matches({ tournamentId, user, onNavigate }) {
   const displayedUpcoming = upcomingExpanded ? sortedUpcoming : sortedUpcoming.slice(0, 3);
   const displayedCompleted = completedExpanded ? sortedCompleted : sortedCompleted.slice(0, 3);
 
+  const handleAutoSchedule = async () => {
+    if (!selectedGroupId || !selectedDivisionId) return;
+
+    const division = divisions.find(d => d.id === selectedDivisionId);
+    if (!division) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // 1. Fetch group participants to check maxTeams capacity validation
+      const partResp = await fetch(`http://localhost:8080/api/divisions/${selectedDivisionId}/participants?groupId=${selectedGroupId}`);
+      if (!partResp.ok) throw new Error('Failed to retrieve group participants');
+      const groupParticipants = await partResp.json();
+
+      if (groupParticipants.length < division.maxTeams) {
+        const proceed = window.confirm("The number of participants in the group is less than the maximum capacity. Do you still want to go ahead and create matches?");
+        if (!proceed) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 2. Check if there are existing matches for the group
+      if (matches.length > 0) {
+        const proceed = window.confirm("There are existing matches in the group. This action will remove the already existing matches and create new ones. Is it Ok to Proceed?");
+        if (!proceed) {
+          setLoading(false);
+          return;
+        }
+      }
+
+      // 3. Call auto-schedule endpoint
+      const scheduleResp = await fetch(`http://localhost:8080/api/groups/${selectedGroupId}/auto-schedule`, {
+        method: 'POST'
+      });
+
+      if (!scheduleResp.ok) {
+        const errMsg = await scheduleResp.text();
+        throw new Error(errMsg || 'Failed to auto-schedule matches.');
+      }
+
+      const updatedMatches = await scheduleResp.json();
+      setMatches(updatedMatches);
+      alert("Matches created successfully");
+    } catch (err) {
+      console.error(err);
+      setError(err.message || 'Failed to auto-schedule matches. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Validate form
   const validateForm = () => {
     const errors = {};
@@ -339,7 +392,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
               <div className="matches-actions-bar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: '1.5rem', marginBottom: '2.5rem', flexWrap: 'wrap' }}>
                 {/* Division + Group filter row */}
                 <div style={{ display: 'flex', gap: '1rem', flex: 1, flexWrap: 'wrap', alignItems: 'flex-end' }}>
-                  <div className="form-group" style={{ margin: 0, minWidth: '220px', flex: '1' }}>
+                  <div className="form-group" style={{ margin: 0, minWidth: '280px', flex: '1' }}>
                     <label htmlFor="divSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Division</label>
                     <select
                       id="divSelect"
@@ -402,17 +455,34 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                 </div>
 
                 {isAdmin && (
-                  <button
-                    className="admin-btn create-match-btn"
-                    onClick={enterCreateMode}
-                    style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '48px', padding: '0 1.25rem', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.25s' }}
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <line x1="12" y1="5" x2="12" y2="19"></line>
-                      <line x1="5" y1="12" x2="19" y2="12"></line>
-                    </svg>
-                    Create New Match
-                  </button>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    {selectedGroupId && (
+                      <button
+                        className="admin-btn auto-schedule-btn"
+                        onClick={handleAutoSchedule}
+                        style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '48px', padding: '0 1.25rem', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.25s' }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                          <line x1="16" y1="2" x2="16" y2="6"></line>
+                          <line x1="8" y1="2" x2="8" y2="6"></line>
+                          <line x1="3" y1="10" x2="21" y2="10"></line>
+                        </svg>
+                        Auto-schedule Group matches
+                      </button>
+                    )}
+                    <button
+                      className="admin-btn create-match-btn"
+                      onClick={enterCreateMode}
+                      style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '48px', padding: '0 1.25rem', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.25s' }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <line x1="12" y1="5" x2="12" y2="19"></line>
+                        <line x1="5" y1="12" x2="19" y2="12"></line>
+                      </svg>
+                      Create New Match
+                    </button>
+                  </div>
                 )}
               </div>
 

@@ -8,6 +8,10 @@ import com.tournamenttracker.backend.repository.ParticipantRepository;
 import com.tournamenttracker.backend.repository.ResultRepository;
 import com.tournamenttracker.backend.repository.TeamPlayerRepository;
 import com.tournamenttracker.backend.repository.PlayerRepository;
+import com.tournamenttracker.backend.repository.GroupRepository;
+import com.tournamenttracker.backend.repository.DivisionRepository;
+import com.tournamenttracker.backend.model.Group;
+import com.tournamenttracker.backend.model.Division;
 import com.tournamenttracker.backend.model.TeamPlayer;
 import com.tournamenttracker.backend.model.Player;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,6 +43,12 @@ public class MatchController {
 
     @Autowired
     private PlayerRepository playerRepository;
+
+    @Autowired
+    private GroupRepository groupRepository;
+
+    @Autowired
+    private DivisionRepository divisionRepository;
 
     private String getPlayerNamesForParticipant(Long participantId) {
         if (participantId == null) return "";
@@ -149,6 +159,7 @@ public class MatchController {
             }
             responses.add(res);
         }
+        responses.sort((r1, r2) -> Integer.compare(r1.getRound() != null ? r1.getRound() : 9999, r2.getRound() != null ? r2.getRound() : 9999));
         return responses;
     }
 
@@ -388,6 +399,78 @@ public class MatchController {
         participantRepository.save(p2);
 
         return ResponseEntity.ok(savedResult);
+    }
+
+    @PostMapping("/groups/{groupId}/auto-schedule")
+    @Transactional
+    public ResponseEntity<?> autoScheduleGroupMatches(@PathVariable Long groupId) {
+        Optional<Group> groupOpt = groupRepository.findById(groupId);
+        if (groupOpt.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        Group group = groupOpt.get();
+        Optional<Division> divisionOpt = divisionRepository.findById(group.getDivisionId());
+        if (divisionOpt.isEmpty()) {
+            return ResponseEntity.badRequest().body("Division not found for group");
+        }
+        Division division = divisionOpt.get();
+
+        List<Participant> participants = participantRepository.findByGroupId(groupId);
+        if (participants.size() < 2) {
+            return ResponseEntity.badRequest().body("At least 2 participants are required to auto-schedule matches.");
+        }
+
+        // 1. Delete existing matches & results
+        List<Match> existingMatches = matchRepository.findByGroupId(groupId);
+        for (Match m : existingMatches) {
+            resultRepository.findByMatchId(m.getMatchId()).ifPresent(resultRepository::delete);
+            matchRepository.delete(m);
+        }
+
+        // 2. Generate Round Robin matches using the circle method
+        int n = participants.size();
+        boolean isOdd = (n % 2 != 0);
+        int numElements = isOdd ? n + 1 : n;
+
+        List<Long> schedulerList = new ArrayList<>();
+        for (Participant p : participants) {
+            schedulerList.add(p.getId());
+        }
+        if (isOdd) {
+            schedulerList.add(null); // dummy bye element
+        }
+
+        int totalRounds = numElements - 1;
+        int matchesPerRound = numElements / 2;
+
+        List<Match> createdMatches = new ArrayList<>();
+
+        for (int roundNum = 1; roundNum <= totalRounds; roundNum++) {
+            for (int i = 0; i < matchesPerRound; i++) {
+                Long home = schedulerList.get(i);
+                Long away = schedulerList.get(numElements - 1 - i);
+
+                if (home != null && away != null) {
+                    Match match = new Match();
+                    match.setTournamentId(division.getTournamentId());
+                    match.setDivisionId(division.getId());
+                    match.setGroupId(groupId);
+                    match.setParticipant1(home);
+                    match.setParticipant2(away);
+                    match.setRound(roundNum);
+                    // Date and time are left null
+                    createdMatches.add(match);
+                }
+            }
+            // Rotate list: keep first element fixed, shift the rest
+            Long last = schedulerList.remove(schedulerList.size() - 1);
+            schedulerList.add(1, last);
+        }
+
+        matchRepository.saveAll(createdMatches);
+
+        // Resolve names for the returned Matches list, ordered by round
+        return ResponseEntity.ok(getMatchesByGroup(groupId));
     }
 
     public static class MatchResponse {

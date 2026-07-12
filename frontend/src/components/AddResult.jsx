@@ -336,21 +336,27 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         const set2Err = validateSet(set2P1, set2P2, set2P1At11, set2P2At11, 'Set 2');
         if (set2Err) errors.set2 = set2Err;
 
-        // If sets are split (1-1), Set 3 is required
-        if (set1P1 !== '' && set1P2 !== '' && set2P1 !== '' && set2P2 !== '') {
-          const p1Set1Won = parseInt(set1P1) > parseInt(set1P2);
-          const p1Set2Won = parseInt(set2P1) > parseInt(set2P2);
+        if (isTeam) {
+          // Set 3 is always validated/required for Team matches if scores are entered
+          const set3Err = validateSet(set3P1, set3P2, set3P1At11, set3P2At11, 'Set 3');
+          if (set3Err) errors.set3 = set3Err;
+        } else {
+          // If sets are split (1-1), Set 3 is required
+          if (set1P1 !== '' && set1P2 !== '' && set2P1 !== '' && set2P2 !== '') {
+            const p1Set1Won = parseInt(set1P1) > parseInt(set1P2);
+            const p1Set2Won = parseInt(set2P1) > parseInt(set2P2);
 
-          if (p1Set1Won !== p1Set2Won) {
-            // Split sets, check Set 3
-            const set3Err = validateSet(set3P1, set3P2, set3P1At11, set3P2At11, 'Set 3');
-            if (set3Err) {
-              errors.set3 = set3Err;
-            }
-          } else {
-            // Decided in 2 sets, Set 3 must be empty or cleared
-            if (set3P1 !== '' || set3P2 !== '' || set3P1At11 !== '' || set3P2At11 !== '') {
-              errors.set3 = 'Match decided in 2 sets; Set 3 scores should be left empty';
+            if (p1Set1Won !== p1Set2Won) {
+              // Split sets, check Set 3
+              const set3Err = validateSet(set3P1, set3P2, set3P1At11, set3P2At11, 'Set 3');
+              if (set3Err) {
+                errors.set3 = set3Err;
+              }
+            } else {
+              // Decided in 2 sets, Set 3 must be empty or cleared
+              if (set3P1 !== '' || set3P2 !== '' || set3P1At11 !== '' || set3P2At11 !== '') {
+                errors.set3 = 'Match decided in 2 sets; Set 3 scores should be left empty';
+              }
             }
           }
         }
@@ -511,6 +517,32 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           Set {setNum} {setNum === 3 ? '(if split)' : ''}
         </h4>
 
+        {/* Rotation helper display */}
+        <div style={{ background: 'rgba(255, 255, 255, 0.015)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.5rem' }}>
+          <div style={{ fontSize: '0.825rem', fontWeight: '600', color: 'var(--accent-pickleball)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            Team Pairings
+          </div>
+          <div style={{ fontSize: '0.825rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>First Half (0-0 to 11 points mark):</strong>
+              <div style={{ color: 'var(--text-secondary)', paddingLeft: '8px', marginTop: '2px' }}>
+                <div>• {matchDetails.participant1Name}: {firstHalfPairs1}</div>
+                <div>• {matchDetails.participant2Name}: {firstHalfPairs2}</div>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Second Half (transition up to 22 points):</strong>
+              <div style={{ color: 'var(--text-secondary)', paddingLeft: '8px', marginTop: '2px' }}>
+                <div>• {matchDetails.participant1Name}: {secondHalfPairs1}</div>
+                <div>• {matchDetails.participant2Name}: {secondHalfPairs2}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
         {/* 11-Point Mark Row */}
         <div style={{ marginBottom: '1.25rem' }}>
           <h5 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.75rem' }}>
@@ -548,7 +580,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         </div>
 
         {/* Final score Row */}
-        <div style={{ marginBottom: '1.5rem' }}>
+        <div style={{ marginBottom: '0.5rem' }}>
           <h5 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.75rem' }}>
             Final Set Scores
           </h5>
@@ -579,32 +611,6 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
                 onChange={(e) => setSetP2(e.target.value)}
                 disabled={formLoading}
               />
-            </div>
-          </div>
-        </div>
-
-        {/* Rotation helper display */}
-        <div style={{ background: 'rgba(255, 255, 255, 0.015)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-          <div style={{ fontSize: '0.825rem', fontWeight: '600', color: 'var(--accent-pickleball)', display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
-            </svg>
-            Rotation Visualizer
-          </div>
-          <div style={{ fontSize: '0.825rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div>
-              <strong style={{ color: 'var(--text-primary)' }}>First Half (0-0 to 11 points mark):</strong>
-              <div style={{ color: 'var(--text-secondary)', paddingLeft: '8px', marginTop: '2px' }}>
-                <div>• {matchDetails.participant1Name}: {firstHalfPairs1}</div>
-                <div>• {matchDetails.participant2Name}: {firstHalfPairs2}</div>
-              </div>
-            </div>
-            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
-              <strong style={{ color: 'var(--text-primary)' }}>Second Half (transition up to 22 points):</strong>
-              <div style={{ color: 'var(--text-secondary)', paddingLeft: '8px', marginTop: '2px' }}>
-                <div>• {matchDetails.participant1Name}: {secondHalfPairs1}</div>
-                <div>• {matchDetails.participant2Name}: {secondHalfPairs2}</div>
-              </div>
             </div>
           </div>
         </div>
@@ -737,10 +743,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
                   <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet (Team Format)</h3>
                   {renderTeamSetCard(1, set1P1At11, setSet1P1At11, set1P2At11, setSet1P2At11, set1P1, setSet1P1, set1P2, setSet1P2, teamPlayers1, teamPlayers2)}
                   {renderTeamSetCard(2, set2P1At11, setSet2P1At11, set2P2At11, setSet2P2At11, set2P1, setSet2P1, set2P2, setSet2P2, teamPlayers1, teamPlayers2)}
-                  {/* For Set 3, show it only if sets are split OR if they are currently editing set 3 values */}
-                  {((set1P1 !== '' && set1P2 !== '' && set2P1 !== '' && set2P2 !== '' && (parseInt(set1P1) > parseInt(set1P2) !== parseInt(set2P1) > parseInt(set2P2))) || set3P1 !== '' || set3P2 !== '' || set3P1At11 !== '' || set3P2At11 !== '') && (
-                    renderTeamSetCard(3, set3P1At11, setSet3P1At11, set3P2At11, setSet3P2At11, set3P1, setSet3P1, set3P2, setSet3P2, teamPlayers1, teamPlayers2)
-                  )}
+                  {renderTeamSetCard(3, set3P1At11, setSet3P1At11, set3P2At11, setSet3P2At11, set3P1, setSet3P1, set3P2, setSet3P2, teamPlayers1, teamPlayers2)}
 
                   {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
                   {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
