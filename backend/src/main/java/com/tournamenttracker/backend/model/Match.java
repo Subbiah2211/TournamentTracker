@@ -42,10 +42,13 @@ public class Match {
     @Column(name = "end_time")
     private LocalTime endTime;
 
+    @Column(name = "round")
+    private Integer round;
+
     public Match() {}
 
     public Match(Long divisionId, Long tournamentId, Long participant1, Long participant2,
-                 LocalDate matchDate, LocalTime startTime, LocalTime endTime) {
+                 LocalDate matchDate, LocalTime startTime, LocalTime endTime, Integer round) {
         this.divisionId = divisionId;
         this.tournamentId = tournamentId;
         this.participant1 = participant1;
@@ -53,6 +56,7 @@ public class Match {
         this.matchDate = matchDate;
         this.startTime = startTime;
         this.endTime = endTime;
+        this.round = round;
     }
 
     public Long getMatchId() {
@@ -125,5 +129,13 @@ public class Match {
 
     public void setGroupId(Long groupId) {
         this.groupId = groupId;
+    }
+
+    public Integer getRound() {
+        return round;
+    }
+
+    public void setRound(Integer round) {
+        this.round = round;
     }
 }

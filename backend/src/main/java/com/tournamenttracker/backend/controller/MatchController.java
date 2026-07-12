@@ -56,6 +56,7 @@ public class MatchController {
             res.setMatchDate(m.getMatchDate());
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
+            res.setRound(m.getRound());
 
             // Fetch result if available
             Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
@@ -109,6 +110,7 @@ public class MatchController {
             res.setMatchDate(m.getMatchDate());
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
+            res.setRound(m.getRound());
             Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
             if (resultOpt.isPresent()) {
                 res.setP1Status(resultOpt.get().getP1Status());
@@ -138,6 +140,7 @@ public class MatchController {
             res.setMatchDate(m.getMatchDate());
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
+            res.setRound(m.getRound());
 
             Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
             if (resultOpt.isPresent()) {
@@ -453,6 +456,16 @@ public class MatchController {
 
         public void setP2Status(String p2Status) {
             this.p2Status = p2Status;
+        }
+
+        private Integer round;
+
+        public Integer getRound() {
+            return round;
+        }
+
+        public void setRound(Integer round) {
+            this.round = round;
         }
     }
 }

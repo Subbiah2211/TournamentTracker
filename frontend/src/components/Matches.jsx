@@ -24,6 +24,8 @@ export default function Matches({ tournamentId, user, onNavigate }) {
   const [matchDate, setMatchDate] = useState('');
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
+  const [round, setRound] = useState('');
+  const [selectedRoundFilter, setSelectedRoundFilter] = useState('all');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
@@ -169,6 +171,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
     setMatchDate('');
     setStartTime('');
     setEndTime('');
+    setRound('');
     setFormError('');
     setValidationErrors({});
     setSubView('create');
@@ -186,13 +189,25 @@ export default function Matches({ tournamentId, user, onNavigate }) {
 
   const todayStr = getLocalTodayString();
 
-  // Partition matches into Upcoming vs Completed
-  const upcomingMatches = matches.filter(m => m.matchDate >= todayStr);
-  const completedMatches = matches.filter(m => m.matchDate < todayStr);
+  // Extract distinct rounds from the full matches list
+  const availableRounds = [...new Set(matches.map(m => m.round).filter(Boolean))].sort((a, b) => a - b);
 
-  // Sorting descending by date and time
+  // Apply round filter
+  const filteredMatches = selectedRoundFilter === 'all'
+    ? matches
+    : matches.filter(m => m.round === parseInt(selectedRoundFilter));
+
+  // Partition matches into Upcoming vs Completed (handling null matchDate as upcoming)
+  const upcomingMatches = filteredMatches.filter(m => !m.matchDate || m.matchDate >= todayStr);
+  const completedMatches = filteredMatches.filter(m => m.matchDate && m.matchDate < todayStr);
+
+  // Sorting descending by date and time, ascending by round
   const sortMatches = (list) => {
     return [...list].sort((a, b) => {
+      const roundA = a.round !== null && a.round !== undefined ? a.round : Infinity;
+      const roundB = b.round !== null && b.round !== undefined ? b.round : Infinity;
+      if (roundA !== roundB) return roundA - roundB;
+
       const dateA = a.matchDate || '';
       const dateB = b.matchDate || '';
       if (dateA !== dateB) return dateB.localeCompare(dateA);
@@ -218,6 +233,9 @@ export default function Matches({ tournamentId, user, onNavigate }) {
     if (formParticipant1 && formParticipant2 && formParticipant1 === formParticipant2) {
       errors.participant2 = 'Participant 2 must be different from Participant 1';
     }
+    if (round && (isNaN(parseInt(round)) || parseInt(round) < 1)) {
+      errors.round = 'Round must be 1 or greater';
+    }
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -238,7 +256,8 @@ export default function Matches({ tournamentId, user, onNavigate }) {
       participant2: parseInt(formParticipant2),
       matchDate: matchDate || null,
       startTime: startTime || null,
-      endTime: endTime || null
+      endTime: endTime || null,
+      round: round ? parseInt(round) : null
     };
 
     try {
@@ -329,6 +348,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                       onChange={(e) => {
                         setSelectedDivisionId(parseInt(e.target.value));
                         setSelectedGroupId(null);
+                        setSelectedRoundFilter('all');
                         setUpcomingExpanded(false);
                         setCompletedExpanded(false);
                       }}
@@ -349,6 +369,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                         value={selectedGroupId || ''}
                         onChange={(e) => {
                           setSelectedGroupId(parseInt(e.target.value));
+                          setSelectedRoundFilter('all');
                           setUpcomingExpanded(false);
                           setCompletedExpanded(false);
                         }}
@@ -356,6 +377,24 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                       >
                         {groupsForSelectedDivision.map((g) => (
                           <option key={g.id} value={g.id}>{g.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {availableRounds.length > 0 && (
+                    <div className="form-group" style={{ margin: 0, minWidth: '150px', flex: '1' }}>
+                      <label htmlFor="roundSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Round</label>
+                      <select
+                        id="roundSelect"
+                        className="form-input form-select"
+                        value={selectedRoundFilter}
+                        onChange={(e) => setSelectedRoundFilter(e.target.value)}
+                        style={{ minHeight: '48px', cursor: 'pointer' }}
+                      >
+                        <option value="all">All Rounds</option>
+                        {availableRounds.map((r) => (
+                          <option key={r} value={r}>Round {r}</option>
                         ))}
                       </select>
                     </div>
@@ -401,6 +440,11 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                               <span>{m.participant1Name}</span>
                               <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '400' }}>vs</span>
                               <span>{m.participant2Name}</span>
+                              {m.round && (
+                                <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
+                                  Round {m.round}
+                                </span>
+                              )}
                             </div>
                             {(m.matchDate || m.startTime) && (
                               <div className="match-card-line2" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -445,6 +489,11 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                               <span>{m.participant1Name}</span>
                               <span style={{ fontSize: '0.9rem', color: 'var(--text-muted)', fontWeight: '400' }}>vs</span>
                               <span>{m.participant2Name}</span>
+                              {m.round && (
+                                <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
+                                  Round {m.round}
+                                </span>
+                              )}
                             </div>
                             {(m.matchDate || m.startTime) && (
                               <div className="match-card-line2" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -592,17 +641,33 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                 </div>
               </div>
 
-              {/* Match Date */}
-              <div className="form-group">
-                <label htmlFor="mDate" className="form-label">Match Date</label>
-                <input
-                  id="mDate"
-                  type="date"
-                  className={`form-input ${validationErrors.matchDate ? 'error' : ''}`}
-                  value={matchDate}
-                  onChange={(e) => setMatchDate(e.target.value)}
-                  disabled={formLoading}
-                />
+              {/* Match Date and Round */}
+              <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                  <label htmlFor="mDate" className="form-label">Match Date</label>
+                  <input
+                    id="mDate"
+                    type="date"
+                    className={`form-input ${validationErrors.matchDate ? 'error' : ''}`}
+                    value={matchDate}
+                    onChange={(e) => setMatchDate(e.target.value)}
+                    disabled={formLoading}
+                  />
+                </div>
+                <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                  <label htmlFor="mRound" className="form-label">Round</label>
+                  <input
+                    id="mRound"
+                    type="number"
+                    min="1"
+                    placeholder="e.g. 1"
+                    className={`form-input ${validationErrors.round ? 'error' : ''}`}
+                    value={round}
+                    onChange={(e) => setRound(e.target.value)}
+                    disabled={formLoading}
+                  />
+                  {validationErrors.round && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.round}</span>}
+                </div>
               </div>
 
               {/* Start/End Time */}
