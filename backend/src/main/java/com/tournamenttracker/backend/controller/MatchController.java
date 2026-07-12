@@ -347,6 +347,12 @@ public class MatchController {
             existing.setSet2P2(result.getSet2P2());
             existing.setSet3P1(result.getSet3P1());
             existing.setSet3P2(result.getSet3P2());
+            existing.setSet1P1At11(result.getSet1P1At11());
+            existing.setSet1P2At11(result.getSet1P2At11());
+            existing.setSet2P1At11(result.getSet2P1At11());
+            existing.setSet2P2At11(result.getSet2P2At11());
+            existing.setSet3P1At11(result.getSet3P1At11());
+            existing.setSet3P2At11(result.getSet3P2At11());
             existing.setP1Status(result.getP1Status());
             existing.setP2Status(result.getP2Status());
 

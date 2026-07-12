@@ -40,6 +40,9 @@ public class Player {
     @Column(name = "skill_level")
     private String skillLevel;
 
+    @jakarta.persistence.Transient
+    private Integer playerOrder;
+
     public Player() {}
 
     public Player(String firstName, String lastName, String email, String phone, String profilePic, String gender, String age, String skillLevel) {
@@ -123,5 +126,13 @@ public class Player {
 
     public void setSkillLevel(String skillLevel) {
         this.skillLevel = skillLevel;
+    }
+
+    public Integer getPlayerOrder() {
+        return playerOrder;
+    }
+
+    public void setPlayerOrder(Integer playerOrder) {
+        this.playerOrder = playerOrder;
     }
 }

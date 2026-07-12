@@ -21,11 +21,45 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
   const [set3P1, setSet3P1] = useState('');
   const [set3P2, setSet3P2] = useState('');
 
+  // Transition scores (at 11) states for Team matches
+  const [set1P1At11, setSet1P1At11] = useState('');
+  const [set1P2At11, setSet1P2At11] = useState('');
+  const [set2P1At11, setSet2P1At11] = useState('');
+  const [set2P2At11, setSet2P2At11] = useState('');
+  const [set3P1At11, setSet3P1At11] = useState('');
+  const [set3P2At11, setSet3P2At11] = useState('');
+
+  // Players list for team division
+  const [teamPlayers1, setTeamPlayers1] = useState([]);
+  const [teamPlayers2, setTeamPlayers2] = useState([]);
+
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [formError, setFormError] = useState('');
+
+  const [participants, setParticipants] = useState([]);
+
+  // Fetch participants when selectedDivisionId changes
+  useEffect(() => {
+    if (!selectedDivisionId) {
+      setParticipants([]);
+      return;
+    }
+    const loadParticipants = async () => {
+      try {
+        const resp = await fetch(`http://localhost:8080/api/divisions/${selectedDivisionId}/participants`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setParticipants(data);
+        }
+      } catch (err) {
+        console.error('Error loading division participants:', err);
+      }
+    };
+    loadParticipants();
+  }, [selectedDivisionId]);
 
   const canEditResults = user && (user.role === 'admin' || user.role === 'editor');
 
@@ -161,6 +195,12 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           setSet2P2(resData.set2P2 !== null ? String(resData.set2P2) : '');
           setSet3P1(resData.set3P1 !== null ? String(resData.set3P1) : '');
           setSet3P2(resData.set3P2 !== null ? String(resData.set3P2) : '');
+          setSet1P1At11(resData.set1P1At11 !== null ? String(resData.set1P1At11) : '');
+          setSet1P2At11(resData.set1P2At11 !== null ? String(resData.set1P2At11) : '');
+          setSet2P1At11(resData.set2P1At11 !== null ? String(resData.set2P1At11) : '');
+          setSet2P2At11(resData.set2P2At11 !== null ? String(resData.set2P2At11) : '');
+          setSet3P1At11(resData.set3P1At11 !== null ? String(resData.set3P1At11) : '');
+          setSet3P2At11(resData.set3P2At11 !== null ? String(resData.set3P2At11) : '');
         } else {
           clearScores();
         }
@@ -172,8 +212,44 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     };
 
     loadMatchDetailsAndResult();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedMatchId]);
+
+  // Fetch team players for Team division when match or participants are loaded
+  useEffect(() => {
+    if (!selectedMatchId || !matchDetails || participants.length === 0 || divisions.length === 0) {
+      setTeamPlayers1([]);
+      setTeamPlayers2([]);
+      return;
+    }
+
+    const currentDivisionLocal = divisions.find(d => String(d.id) === String(selectedDivisionId));
+    if (currentDivisionLocal?.divisionType !== 'Team') {
+      return;
+    }
+
+    const loadTeamPlayers = async () => {
+      try {
+        const p1 = participants.find(p => p.id === matchDetails.participant1);
+        const p2 = participants.find(p => p.id === matchDetails.participant2);
+        if (p1 && p2) {
+          const p1PlayersResp = await fetch(`http://localhost:8080/api/teams/${p1.playerTeamId}/players`);
+          if (p1PlayersResp.ok) {
+            const p1Players = await p1PlayersResp.json();
+            setTeamPlayers1(p1Players);
+          }
+          const p2PlayersResp = await fetch(`http://localhost:8080/api/teams/${p2.playerTeamId}/players`);
+          if (p2PlayersResp.ok) {
+            const p2Players = await p2PlayersResp.json();
+            setTeamPlayers2(p2Players);
+          }
+        }
+      } catch (err) {
+        console.error('Error loading team players:', err);
+      }
+    };
+
+    loadTeamPlayers();
+  }, [selectedMatchId, matchDetails, participants, divisions, selectedDivisionId]);
 
   const clearScores = () => {
     setSet1P1('');
@@ -182,6 +258,14 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     setSet2P2('');
     setSet3P1('');
     setSet3P2('');
+    setSet1P1At11('');
+    setSet1P2At11('');
+    setSet2P1At11('');
+    setSet2P2At11('');
+    setSet3P1At11('');
+    setSet3P2At11('');
+    setTeamPlayers1([]);
+    setTeamPlayers2([]);
   };
 
   const handleDivisionChange = (divId) => {
@@ -209,23 +293,48 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
       const hasScores = set1P1 !== '' || set1P2 !== '' || set2P1 !== '' || set2P2 !== '' || set3P1 !== '' || set3P2 !== '';
 
       if (hasScores) {
+        const isTeam = currentDivision?.divisionType === 'Team';
+
+        // Helper to validate set transition and final scores
+        const validateSet = (setP1, setP2, setP1At11, setP2At11, setLabel) => {
+          if (setP1 === '' || setP2 === '') {
+            return `${setLabel} scores are required`;
+          }
+          const p1Val = parseInt(setP1);
+          const p2Val = parseInt(setP2);
+          if (isNaN(p1Val) || isNaN(p2Val) || p1Val < 0 || p2Val < 0) {
+            return 'Scores must be positive numbers';
+          }
+          if (p1Val === p2Val) {
+            return `${setLabel} cannot be a tie`;
+          }
+
+          if (isTeam) {
+            if (setP1At11 === '' || setP2At11 === '') {
+              return `${setLabel} 11-point mark scores are required`;
+            }
+            const p1At11Val = parseInt(setP1At11);
+            const p2At11Val = parseInt(setP2At11);
+            if (isNaN(p1At11Val) || isNaN(p2At11Val) || p1At11Val < 0 || p2At11Val < 0) {
+              return '11-point mark scores must be positive numbers';
+            }
+            if (!((p1At11Val === 11 && p2At11Val < 11) || (p2At11Val === 11 && p1At11Val < 11))) {
+              return 'One team must score exactly 11 points at the transition mark, and the other must score less than 11';
+            }
+            if (p1Val < p1At11Val || p2Val < p2At11Val) {
+              return 'Final scores must be greater than or equal to 11-point mark scores';
+            }
+          }
+          return null;
+        };
+
         // Set 1 validation
-        if (set1P1 === '' || set1P2 === '') {
-          errors.set1 = 'Set 1 scores are required';
-        } else if (isNaN(set1P1) || isNaN(set1P2) || parseInt(set1P1) < 0 || parseInt(set1P2) < 0) {
-          errors.set1 = 'Scores must be positive numbers';
-        } else if (parseInt(set1P1) === parseInt(set1P2)) {
-          errors.set1 = 'Set 1 cannot be a tie';
-        }
+        const set1Err = validateSet(set1P1, set1P2, set1P1At11, set1P2At11, 'Set 1');
+        if (set1Err) errors.set1 = set1Err;
 
         // Set 2 validation
-        if (set2P1 === '' || set2P2 === '') {
-          errors.set2 = 'Set 2 scores are required';
-        } else if (isNaN(set2P1) || isNaN(set2P2) || parseInt(set2P1) < 0 || parseInt(set2P2) < 0) {
-          errors.set2 = 'Scores must be positive numbers';
-        } else if (parseInt(set2P1) === parseInt(set2P2)) {
-          errors.set2 = 'Set 2 cannot be a tie';
-        }
+        const set2Err = validateSet(set2P1, set2P2, set2P1At11, set2P2At11, 'Set 2');
+        if (set2Err) errors.set2 = set2Err;
 
         // If sets are split (1-1), Set 3 is required
         if (set1P1 !== '' && set1P2 !== '' && set2P1 !== '' && set2P2 !== '') {
@@ -234,16 +343,13 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
 
           if (p1Set1Won !== p1Set2Won) {
             // Split sets, check Set 3
-            if (set3P1 === '' || set3P2 === '') {
-              errors.set3 = 'Set 3 scores are required for a split match';
-            } else if (isNaN(set3P1) || isNaN(set3P2) || parseInt(set3P1) < 0 || parseInt(set3P2) < 0) {
-              errors.set3 = 'Scores must be positive numbers';
-            } else if (parseInt(set3P1) === parseInt(set3P2)) {
-              errors.set3 = 'Set 3 cannot be a tie';
+            const set3Err = validateSet(set3P1, set3P2, set3P1At11, set3P2At11, 'Set 3');
+            if (set3Err) {
+              errors.set3 = set3Err;
             }
           } else {
             // Decided in 2 sets, Set 3 must be empty or cleared
-            if (set3P1 !== '' || set3P2 !== '') {
+            if (set3P1 !== '' || set3P2 !== '' || set3P1At11 !== '' || set3P2At11 !== '') {
               errors.set3 = 'Match decided in 2 sets; Set 3 scores should be left empty';
             }
           }
@@ -297,7 +403,13 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           set2P1: parseInt(set2P1),
           set2P2: parseInt(set2P2),
           set3P1: set3P1 !== '' ? parseInt(set3P1) : null,
-          set3P2: set3P2 !== '' ? parseInt(set3P2) : null
+          set3P2: set3P2 !== '' ? parseInt(set3P2) : null,
+          set1P1At11: set1P1At11 !== '' ? parseInt(set1P1At11) : null,
+          set1P2At11: set1P2At11 !== '' ? parseInt(set1P2At11) : null,
+          set2P1At11: set2P1At11 !== '' ? parseInt(set2P1At11) : null,
+          set2P2At11: set2P2At11 !== '' ? parseInt(set2P2At11) : null,
+          set3P1At11: set3P1At11 !== '' ? parseInt(set3P1At11) : null,
+          set3P2At11: set3P2At11 !== '' ? parseInt(set3P2At11) : null
         };
 
         const resultResponse = await fetch('http://localhost:8080/api/results', {
@@ -353,6 +465,152 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
       </div>
     );
   }
+
+  const renderTeamSetCard = (setNum, setP1At11, setSetP1At11, setP2At11, setSetP2At11, setP1, setSetP1, setP2, setSetP2, p1Players, p2Players) => {
+    // Determine player rotation designations based on setNum
+    let firstHalfPairs1 = "";
+    let firstHalfPairs2 = "";
+    let secondHalfPairs1 = "";
+    let secondHalfPairs2 = "";
+
+    if (p1Players.length >= 4 && p2Players.length >= 4) {
+      const getPlayerName = (list, index) => list[index] ? `${list[index].firstName} ${list[index].lastName}` : `Player ${index + 1}`;
+      if (setNum === 1) {
+        firstHalfPairs1 = `${getPlayerName(p1Players, 1)} / ${getPlayerName(p1Players, 2)}`;
+        firstHalfPairs2 = `${getPlayerName(p2Players, 1)} / ${getPlayerName(p2Players, 2)}`;
+        secondHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 3)}`;
+        secondHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 3)}`;
+      } else if (setNum === 2) {
+        firstHalfPairs1 = `${getPlayerName(p1Players, 1)} / ${getPlayerName(p1Players, 3)}`;
+        firstHalfPairs2 = `${getPlayerName(p2Players, 1)} / ${getPlayerName(p2Players, 3)}`;
+        secondHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 2)}`;
+        secondHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 2)}`;
+      } else if (setNum === 3) {
+        firstHalfPairs1 = `${getPlayerName(p1Players, 2)} / ${getPlayerName(p1Players, 3)}`;
+        firstHalfPairs2 = `${getPlayerName(p2Players, 2)} / ${getPlayerName(p2Players, 3)}`;
+        secondHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 1)}`;
+        secondHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 1)}`;
+      }
+    } else {
+      // Fallback description if players list not loaded
+      if (setNum === 1) {
+        firstHalfPairs1 = firstHalfPairs2 = "Player 2 & Player 3";
+        secondHalfPairs1 = secondHalfPairs2 = "Player 1 & Player 4";
+      } else if (setNum === 2) {
+        firstHalfPairs1 = firstHalfPairs2 = "Player 2 & Player 4";
+        secondHalfPairs1 = secondHalfPairs2 = "Player 1 & Player 3";
+      } else if (setNum === 3) {
+        firstHalfPairs1 = firstHalfPairs2 = "Player 3 & Player 4";
+        secondHalfPairs1 = secondHalfPairs2 = "Player 1 & Player 2";
+      }
+    }
+
+    return (
+      <div className="team-set-card" style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+        <h4 style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--primary)', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.5rem' }}>
+          Set {setNum} {setNum === 3 ? '(if split)' : ''}
+        </h4>
+
+        {/* 11-Point Mark Row */}
+        <div style={{ marginBottom: '1.25rem' }}>
+          <h5 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.75rem' }}>
+            Scores at 11-Point Mark (Transition)
+          </h5>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{matchDetails.participant1Name}</label>
+              <input
+                type="number"
+                min="0"
+                max="11"
+                placeholder="e.g. 11"
+                className="form-input"
+                value={setP1At11}
+                onChange={(e) => setSetP1At11(e.target.value)}
+                disabled={formLoading}
+              />
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-muted)', paddingTop: '18px' }}>-</div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{matchDetails.participant2Name}</label>
+              <input
+                type="number"
+                min="0"
+                max="11"
+                placeholder="e.g. 8"
+                className="form-input"
+                value={setP2At11}
+                onChange={(e) => setSetP2At11(e.target.value)}
+                disabled={formLoading}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Final score Row */}
+        <div style={{ marginBottom: '1.5rem' }}>
+          <h5 style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '0.75rem' }}>
+            Final Set Scores
+          </h5>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{matchDetails.participant1Name}</label>
+              <input
+                type="number"
+                min="0"
+                max="22"
+                placeholder="e.g. 22"
+                className="form-input"
+                value={setP1}
+                onChange={(e) => setSetP1(e.target.value)}
+                disabled={formLoading}
+              />
+            </div>
+            <div style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-muted)', paddingTop: '18px' }}>-</div>
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+              <label style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{matchDetails.participant2Name}</label>
+              <input
+                type="number"
+                min="0"
+                max="22"
+                placeholder="e.g. 15"
+                className="form-input"
+                value={setP2}
+                onChange={(e) => setSetP2(e.target.value)}
+                disabled={formLoading}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Rotation helper display */}
+        <div style={{ background: 'rgba(255, 255, 255, 0.015)', border: '1px solid rgba(255, 255, 255, 0.05)', borderRadius: '12px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+          <div style={{ fontSize: '0.825rem', fontWeight: '600', color: 'var(--accent-pickleball)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+            </svg>
+            Rotation Visualizer
+          </div>
+          <div style={{ fontSize: '0.825rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <div>
+              <strong style={{ color: 'var(--text-primary)' }}>First Half (0-0 to 11 points mark):</strong>
+              <div style={{ color: 'var(--text-secondary)', paddingLeft: '8px', marginTop: '2px' }}>
+                <div>• {matchDetails.participant1Name}: {firstHalfPairs1}</div>
+                <div>• {matchDetails.participant2Name}: {firstHalfPairs2}</div>
+              </div>
+            </div>
+            <div style={{ borderTop: '1px solid rgba(255, 255, 255, 0.04)', paddingTop: '0.5rem', marginTop: '0.25rem' }}>
+              <strong style={{ color: 'var(--text-primary)' }}>Second Half (transition up to 22 points):</strong>
+              <div style={{ color: 'var(--text-secondary)', paddingLeft: '8px', marginTop: '2px' }}>
+                <div>• {matchDetails.participant1Name}: {secondHalfPairs1}</div>
+                <div>• {matchDetails.participant2Name}: {secondHalfPairs2}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const currentDivision = divisions.find(d => String(d.id) === String(selectedDivisionId));
 
@@ -474,116 +732,132 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
                 </div>
               </div>
 
-              <div>
-                <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet</h3>
-                
-                <div className="scores-grid" style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center', margin: '1.5rem 0' }}>
-                  <div style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Participant</div>
-                  <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 1</div>
-                  <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 2</div>
-                  <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 3 (if split)</div>
-
-                  {/* Row for Participant 1 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                    <span style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                      {matchDetails.participant1Name}
-                    </span>
-                    {currentDivision?.divisionType === 'Doubles' && matchDetails.participant1PlayerNames && (
-                      <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {matchDetails.participant1PlayerNames}
-                      </span>
-                    )}
-                  </div>
+              {currentDivision?.divisionType === 'Team' ? (
                 <div>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={set1P1}
-                    onChange={(e) => setSet1P1(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    disabled={formLoading}
-                    style={{ textAlign: 'center', minHeight: '44px' }}
-                  />
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={set2P1}
-                    onChange={(e) => setSet2P1(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    disabled={formLoading}
-                    style={{ textAlign: 'center', minHeight: '44px' }}
-                  />
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={set3P1}
-                    onChange={(e) => setSet3P1(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    disabled={formLoading}
-                    style={{ textAlign: 'center', minHeight: '44px' }}
-                  />
-                </div>
-
-                {/* Row for Participant 2 */}
-                <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-                  <span style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
-                    {matchDetails.participant2Name}
-                  </span>
-                  {currentDivision?.divisionType === 'Doubles' && matchDetails.participant2PlayerNames && (
-                    <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {matchDetails.participant2PlayerNames}
-                    </span>
+                  <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet (Team Format)</h3>
+                  {renderTeamSetCard(1, set1P1At11, setSet1P1At11, set1P2At11, setSet1P2At11, set1P1, setSet1P1, set1P2, setSet1P2, teamPlayers1, teamPlayers2)}
+                  {renderTeamSetCard(2, set2P1At11, setSet2P1At11, set2P2At11, setSet2P2At11, set2P1, setSet2P1, set2P2, setSet2P2, teamPlayers1, teamPlayers2)}
+                  {/* For Set 3, show it only if sets are split OR if they are currently editing set 3 values */}
+                  {((set1P1 !== '' && set1P2 !== '' && set2P1 !== '' && set2P2 !== '' && (parseInt(set1P1) > parseInt(set1P2) !== parseInt(set2P1) > parseInt(set2P2))) || set3P1 !== '' || set3P2 !== '' || set3P1At11 !== '' || set3P2At11 !== '') && (
+                    renderTeamSetCard(3, set3P1At11, setSet3P1At11, set3P2At11, setSet3P2At11, set3P1, setSet3P1, set3P2, setSet3P2, teamPlayers1, teamPlayers2)
                   )}
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={set1P2}
-                    onChange={(e) => setSet1P2(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    disabled={formLoading}
-                    style={{ textAlign: 'center', minHeight: '44px' }}
-                  />
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={set2P2}
-                    onChange={(e) => setSet2P2(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    disabled={formLoading}
-                    style={{ textAlign: 'center', minHeight: '44px' }}
-                  />
-                </div>
-                <div>
-                  <input
-                    type="number"
-                    className="form-input"
-                    value={set3P2}
-                    onChange={(e) => setSet3P2(e.target.value)}
-                    placeholder="0"
-                    min="0"
-                    disabled={formLoading}
-                    style={{ textAlign: 'center', minHeight: '44px' }}
-                  />
-                </div>
-              </div>
 
-              {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
-              {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
-              {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
-            </div>
+                  {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
+                  {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
+                  {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
+                </div>
+              ) : (
+                <div>
+                  <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet</h3>
+                  
+                  <div className="scores-grid" style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center', margin: '1.5rem 0' }}>
+                    <div style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Participant</div>
+                    <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 1</div>
+                    <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 2</div>
+                    <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 3 (if split)</div>
+
+                    {/* Row for Participant 1 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                      <span style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        {matchDetails.participant1Name}
+                      </span>
+                      {currentDivision?.divisionType === 'Doubles' && matchDetails.participant1PlayerNames && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {matchDetails.participant1PlayerNames}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={set1P1}
+                        onChange={(e) => setSet1P1(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        disabled={formLoading}
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={set2P1}
+                        onChange={(e) => setSet2P1(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        disabled={formLoading}
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={set3P1}
+                        onChange={(e) => setSet3P1(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        disabled={formLoading}
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+
+                    {/* Row for Participant 2 */}
+                    <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+                      <span style={{ fontSize: '1.05rem', fontWeight: '600', color: 'var(--text-primary)', textOverflow: 'ellipsis', whiteSpace: 'nowrap', overflow: 'hidden' }}>
+                        {matchDetails.participant2Name}
+                      </span>
+                      {currentDivision?.divisionType === 'Doubles' && matchDetails.participant2PlayerNames && (
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                          {matchDetails.participant2PlayerNames}
+                        </span>
+                      )}
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={set1P2}
+                        onChange={(e) => setSet1P2(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        disabled={formLoading}
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={set2P2}
+                        onChange={(e) => setSet2P2(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        disabled={formLoading}
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+                    <div>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={set3P2}
+                        onChange={(e) => setSet3P2(e.target.value)}
+                        placeholder="0"
+                        min="0"
+                        disabled={formLoading}
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+                  </div>
+
+                  {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
+                  {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
+                  {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
+                </div>
+              )}
 
             <button
               type="submit"

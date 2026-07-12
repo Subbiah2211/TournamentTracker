@@ -37,6 +37,24 @@ public class Result {
     @Column(name = "set3_p2")
     private Integer set3P2;
 
+    @Column(name = "set1_p1_at_11")
+    private Integer set1P1At11;
+
+    @Column(name = "set1_p2_at_11")
+    private Integer set1P2At11;
+
+    @Column(name = "set2_p1_at_11")
+    private Integer set2P1At11;
+
+    @Column(name = "set2_p2_at_11")
+    private Integer set2P2At11;
+
+    @Column(name = "set3_p1_at_11")
+    private Integer set3P1At11;
+
+    @Column(name = "set3_p2_at_11")
+    private Integer set3P2At11;
+
     @Column(name = "p1_status")
     private String p1Status;
 
@@ -136,5 +154,53 @@ public class Result {
 
     public void setP2Status(String p2Status) {
         this.p2Status = p2Status;
+    }
+
+    public Integer getSet1P1At11() {
+        return set1P1At11;
+    }
+
+    public void setSet1P1At11(Integer set1P1At11) {
+        this.set1P1At11 = set1P1At11;
+    }
+
+    public Integer getSet1P2At11() {
+        return set1P2At11;
+    }
+
+    public void setSet1P2At11(Integer set1P2At11) {
+        this.set1P2At11 = set1P2At11;
+    }
+
+    public Integer getSet2P1At11() {
+        return set2P1At11;
+    }
+
+    public void setSet2P1At11(Integer set2P1At11) {
+        this.set2P1At11 = set2P1At11;
+    }
+
+    public Integer getSet2P2At11() {
+        return set2P2At11;
+    }
+
+    public void setSet2P2At11(Integer set2P2At11) {
+        this.set2P2At11 = set2P2At11;
+    }
+
+    public Integer getSet3P1At11() {
+        return set3P1At11;
+    }
+
+    public void setSet3P1At11(Integer set3P1At11) {
+        this.set3P1At11 = set3P1At11;
+    }
+
+    public Integer getSet3P2At11() {
+        return set3P2At11;
+    }
+
+    public void setSet3P2At11(Integer set3P2At11) {
+        this.set3P2At11 = set3P2At11;
     }
 }

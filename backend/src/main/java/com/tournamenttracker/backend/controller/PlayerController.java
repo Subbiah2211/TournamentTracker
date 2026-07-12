@@ -53,8 +53,17 @@ public class PlayerController {
     @GetMapping("/teams/{teamId}/players")
     public List<Player> getTeamPlayers(@PathVariable Long teamId) {
         List<TeamPlayer> teamPlayers = teamPlayerRepository.findByTeamId(teamId);
+        Map<Long, Integer> orderMap = teamPlayers.stream()
+                .filter(tp -> tp.getPlayerId() != null)
+                .collect(java.util.stream.Collectors.toMap(TeamPlayer::getPlayerId, tp -> tp.getPlayerOrder() != null ? tp.getPlayerOrder() : 0, (a, b) -> a));
+
         List<Long> playerIds = teamPlayers.stream().map(TeamPlayer::getPlayerId).toList();
-        return playerRepository.findAllById(playerIds);
+        List<Player> players = new java.util.ArrayList<>(playerRepository.findAllById(playerIds));
+        for (Player p : players) {
+            p.setPlayerOrder(orderMap.getOrDefault(p.getId(), 0));
+        }
+        players.sort((p1, p2) -> Integer.compare(p1.getPlayerOrder() != null ? p1.getPlayerOrder() : 0, p2.getPlayerOrder() != null ? p2.getPlayerOrder() : 0));
+        return players;
     }
 
     @GetMapping("/tournaments/{tournamentId}/participants")

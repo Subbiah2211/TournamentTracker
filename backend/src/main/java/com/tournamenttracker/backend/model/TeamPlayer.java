@@ -52,4 +52,15 @@ public class TeamPlayer {
     public void setPlayerId(Long playerId) {
         this.playerId = playerId;
     }
+
+    @Column(name = "player_order")
+    private Integer playerOrder;
+
+    public Integer getPlayerOrder() {
+        return playerOrder;
+    }
+
+    public void setPlayerOrder(Integer playerOrder) {
+        this.playerOrder = playerOrder;
+    }
 }
