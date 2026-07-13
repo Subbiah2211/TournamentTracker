@@ -12,10 +12,17 @@ RUN npm run build
 
 # Stage 2: Serve the production build using Nginx
 FROM nginx:alpine
+
+# Remove default configuration assets to eliminate conflicts
+RUN rm -rf /etc/nginx/conf.d/* /etc/nginx/nginx.conf
+
+# Copy Vite's build directory (dist) over to Nginx's static folder
 COPY --from=build /app/dist /usr/share/nginx/html
 
-# CHANGE: Copy directly to /etc/nginx/nginx.conf instead of conf.d/
+# Overwrite the global nginx configuration file
 COPY nginx.conf /etc/nginx/nginx.conf
 
 EXPOSE 8080
-CMD ["nginx", "-g", "daemon off;"]
+
+# CRITICAL: Run Nginx explicitly in the foreground so Cloud Run monitors it correctly
+ENTRYPOINT ["nginx", "-g", "daemon off;"]
