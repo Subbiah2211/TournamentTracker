@@ -10,19 +10,19 @@ ENV VITE_API_BASE_URL=$VITE_API_BASE_URL
 
 RUN npm run build
 
-# Stage 2: Serve the production build using Nginx
-FROM nginx:alpine
+# Stage 2: Serve the production build using Node
+FROM node:22-alpine
+WORKDIR /app
 
-# Remove default configuration assets to eliminate conflicts
-RUN rm -rf /etc/nginx/conf.d/* /etc/nginx/nginx.conf
+# Install 'serve' globally to host static files
+RUN npm install -g serve
 
-# Copy Vite's build directory (dist) over to Nginx's static folder
-COPY --from=build /app/dist /usr/share/nginx/html
+# Copy compiled Vite output from the build stage
+COPY --from=build /app/dist ./dist
 
-# Overwrite the global nginx configuration file
-COPY nginx.conf /etc/nginx/nginx.conf
-
+# EXPOSE is largely documentation, but good practice
 EXPOSE 8080
 
-# CRITICAL: Run Nginx explicitly in the foreground so Cloud Run monitors it correctly
-ENTRYPOINT ["nginx", "-g", "daemon off;"]
+# Start the server on all network interfaces (0.0.0.0) 
+# and dynamically bind to Cloud Run's injected $PORT
+CMD ["sh", "-c", "serve -s dist -l tcp://0.0.0.0:${PORT:-8080}"]
