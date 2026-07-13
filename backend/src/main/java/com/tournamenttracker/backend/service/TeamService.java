@@ -53,7 +53,9 @@ public class TeamService {
 
         // 4. Save Team-Player relations
         TeamPlayer tp1 = new TeamPlayer(savedTeam.getId(), player1.getId());
+        tp1.setPlayerOrder(1);
         TeamPlayer tp2 = new TeamPlayer(savedTeam.getId(), player2.getId());
+        tp2.setPlayerOrder(2);
         teamPlayerRepository.save(tp1);
         teamPlayerRepository.save(tp2);
 
@@ -90,9 +92,11 @@ public class TeamService {
         Team savedTeam = teamRepository.save(team);
 
         // 2. Save/Update players and link to the team
+        int order = 1;
         for (DoublesPlayerRequest pReq : request.getPlayers()) {
             Player player = saveOrUpdatePlayer(pReq);
             TeamPlayer tp = new TeamPlayer(savedTeam.getId(), player.getId());
+            tp.setPlayerOrder(order++);
             teamPlayerRepository.save(tp);
         }
 
@@ -139,7 +143,9 @@ public class TeamService {
         Player player2 = saveOrUpdatePlayer(request.getPlayer2());
 
         TeamPlayer tp1 = new TeamPlayer(savedTeam.getId(), player1.getId());
+        tp1.setPlayerOrder(1);
         TeamPlayer tp2 = new TeamPlayer(savedTeam.getId(), player2.getId());
+        tp2.setPlayerOrder(2);
         teamPlayerRepository.save(tp1);
         teamPlayerRepository.save(tp2);
 
@@ -178,9 +184,11 @@ public class TeamService {
 
         teamPlayerRepository.deleteByTeamId(teamId);
 
+        int order = 1;
         for (DoublesPlayerRequest pReq : request.getPlayers()) {
             Player player = saveOrUpdatePlayer(pReq);
             TeamPlayer tp = new TeamPlayer(savedTeam.getId(), player.getId());
+            tp.setPlayerOrder(order++);
             teamPlayerRepository.save(tp);
         }
 

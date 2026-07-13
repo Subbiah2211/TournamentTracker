@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function TournamentForm({ mode, tournamentId, onNavigate, onCancel }) {
   const [title, setTitle] = useState('');
@@ -29,7 +30,7 @@ export default function TournamentForm({ mode, tournamentId, onNavigate, onCance
       const fetchTournament = async () => {
         try {
           setFetching(true);
-          const response = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}`);
+          const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}`);
           if (!response.ok) {
             throw new Error('Failed to load tournament data');
           }
@@ -145,7 +146,7 @@ export default function TournamentForm({ mode, tournamentId, onNavigate, onCance
     const formData = new FormData();
     formData.append('file', fileObj);
 
-    const response = await fetch('http://localhost:8080/api/upload', {
+    const response = await fetch(`${API_BASE_URL}/api/upload`, {
       method: 'POST',
       body: formData
     });
@@ -230,13 +231,13 @@ export default function TournamentForm({ mode, tournamentId, onNavigate, onCance
 
       let response;
       if (mode === 'create') {
-        response = await fetch('http://localhost:8080/api/tournaments', {
+        response = await fetch(`${API_BASE_URL}/api/tournaments`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
         });
       } else {
-        response = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}`, {
+        response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)

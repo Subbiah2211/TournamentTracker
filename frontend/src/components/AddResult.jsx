@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function AddResult({ tournamentId, user, onNavigate, searchQuery }) {
   const [divisions, setDivisions] = useState([]);
@@ -49,7 +50,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     }
     const loadParticipants = async () => {
       try {
-        const resp = await fetch(`http://localhost:8080/api/divisions/${selectedDivisionId}/participants`);
+        const resp = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivisionId}/participants`);
         if (resp.ok) {
           const data = await resp.json();
           setParticipants(data);
@@ -84,7 +85,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         setError(null);
 
         // Load divisions
-        const divResponse = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}/divisions`);
+        const divResponse = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/divisions`);
         if (!divResponse.ok) {
           throw new Error('Failed to load divisions');
         }
@@ -93,7 +94,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
 
         if (queryMatchId) {
           // Fetch match details to find division
-          const matchResponse = await fetch(`http://localhost:8080/api/matches/${queryMatchId}`);
+          const matchResponse = await fetch(`${API_BASE_URL}/api/matches/${queryMatchId}`);
           if (matchResponse.ok) {
             const matchData = await matchResponse.json();
             setMatchDetails(matchData);
@@ -101,7 +102,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
             setSelectedMatchId(matchData.matchId);
             
             // Fetch matches for that division
-            const matchesResp = await fetch(`http://localhost:8080/api/divisions/${matchData.divisionId}/matches`);
+            const matchesResp = await fetch(`${API_BASE_URL}/api/divisions/${matchData.divisionId}/matches`);
             if (matchesResp.ok) {
               const matchesData = await matchesResp.json();
               setMatches(matchesData);
@@ -134,7 +135,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
 
     const loadMatches = async () => {
       try {
-        const response = await fetch(`http://localhost:8080/api/divisions/${selectedDivisionId}/matches`);
+        const response = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivisionId}/matches`);
         if (response.ok) {
           const data = await response.json();
           setMatches(data);
@@ -170,7 +171,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
 
         let activeMatchData = matchDetails;
         if (!activeMatchData || activeMatchData.matchId !== parseInt(selectedMatchId)) {
-          const matchResp = await fetch(`http://localhost:8080/api/matches/${selectedMatchId}`);
+          const matchResp = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}`);
           if (matchResp.ok) {
             const matchData = await matchResp.json();
             setMatchDetails(matchData);
@@ -186,7 +187,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         }
 
         // Fetch result for the match
-        const resultResp = await fetch(`http://localhost:8080/api/matches/${selectedMatchId}/result`);
+        const resultResp = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}/result`);
         if (resultResp.ok) {
           const resData = await resultResp.json();
           setSet1P1(resData.set1P1 !== null ? String(resData.set1P1) : '');
@@ -232,12 +233,12 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         const p1 = participants.find(p => p.id === matchDetails.participant1);
         const p2 = participants.find(p => p.id === matchDetails.participant2);
         if (p1 && p2) {
-          const p1PlayersResp = await fetch(`http://localhost:8080/api/teams/${p1.playerTeamId}/players`);
+          const p1PlayersResp = await fetch(`${API_BASE_URL}/api/teams/${p1.playerTeamId}/players`);
           if (p1PlayersResp.ok) {
             const p1Players = await p1PlayersResp.json();
             setTeamPlayers1(p1Players);
           }
-          const p2PlayersResp = await fetch(`http://localhost:8080/api/teams/${p2.playerTeamId}/players`);
+          const p2PlayersResp = await fetch(`${API_BASE_URL}/api/teams/${p2.playerTeamId}/players`);
           if (p2PlayersResp.ok) {
             const p2Players = await p2PlayersResp.json();
             setTeamPlayers2(p2Players);
@@ -390,7 +391,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         round: round ? parseInt(round) : null
       };
 
-      const matchResponse = await fetch(`http://localhost:8080/api/matches/${selectedMatchId}`, {
+      const matchResponse = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(matchPayload)
@@ -418,7 +419,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           set3P2At11: set3P2At11 !== '' ? parseInt(set3P2At11) : null
         };
 
-        const resultResponse = await fetch('http://localhost:8080/api/results', {
+        const resultResponse = await fetch(`${API_BASE_URL}/api/results`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(resultPayload)

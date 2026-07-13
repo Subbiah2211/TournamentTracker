@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function Standings({ tournamentId, onNavigate }) {
   const [divisions, setDivisions] = useState([]);
@@ -15,7 +16,7 @@ export default function Standings({ tournamentId, onNavigate }) {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}/divisions`);
+        const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/divisions`);
         if (!response.ok) throw new Error('Failed to load divisions');
         const data = await response.json();
         setDivisions(data);
@@ -39,7 +40,7 @@ export default function Standings({ tournamentId, onNavigate }) {
 
     const loadGroups = async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/divisions/${selectedDivisionId}/groups`);
+        const res = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivisionId}/groups`);
         if (res.ok) {
           const data = await res.json();
           setGroups(data);
@@ -67,8 +68,8 @@ export default function Standings({ tournamentId, onNavigate }) {
         setLoading(true);
         setError(null);
         const url = selectedGroupId
-          ? `http://localhost:8080/api/divisions/${selectedDivisionId}/participants?groupId=${selectedGroupId}`
-          : `http://localhost:8080/api/divisions/${selectedDivisionId}/participants`;
+          ? `${API_BASE_URL}/api/divisions/${selectedDivisionId}/participants?groupId=${selectedGroupId}`
+          : `${API_BASE_URL}/api/divisions/${selectedDivisionId}/participants`;
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to load standings data');
         const data = await response.json();

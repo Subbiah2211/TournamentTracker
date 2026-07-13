@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function Matches({ tournamentId, user, onNavigate }) {
   const [divisions, setDivisions] = useState([]);
@@ -42,7 +43,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}/divisions`);
+        const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/divisions`);
         if (!response.ok) throw new Error('Failed to load divisions');
         const data = await response.json();
         setDivisions(data);
@@ -65,7 +66,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
     if (!selectedDivisionId) return;
     const fetchGroups = async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/divisions/${selectedDivisionId}/groups`);
+        const res = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivisionId}/groups`);
         if (res.ok) {
           const data = await res.json();
           setGroupsForSelectedDivision(data);
@@ -92,9 +93,9 @@ export default function Matches({ tournamentId, user, onNavigate }) {
         setError(null);
         let url;
         if (selectedGroupId) {
-          url = `http://localhost:8080/api/groups/${selectedGroupId}/matches`;
+          url = `${API_BASE_URL}/api/groups/${selectedGroupId}/matches`;
         } else {
-          url = `http://localhost:8080/api/divisions/${selectedDivisionId}/matches`;
+          url = `${API_BASE_URL}/api/divisions/${selectedDivisionId}/matches`;
         }
         const response = await fetch(url);
         if (!response.ok) throw new Error('Failed to load matches');
@@ -114,7 +115,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
   // 4. Fetch groups for the create-match form when division changes
   const fetchFormGroupsForDivision = async (divId) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/divisions/${divId}/groups`);
+      const res = await fetch(`${API_BASE_URL}/api/divisions/${divId}/groups`);
       if (res.ok) {
         const data = await res.json();
         setFormGroupsForDivision(data);
@@ -135,8 +136,8 @@ export default function Matches({ tournamentId, user, onNavigate }) {
   const fetchParticipantsForGroup = async (groupId, divId) => {
     try {
       const url = groupId
-        ? `http://localhost:8080/api/divisions/${divId}/participants?groupId=${groupId}`
-        : `http://localhost:8080/api/divisions/${divId}/participants`;
+        ? `${API_BASE_URL}/api/divisions/${divId}/participants?groupId=${groupId}`
+        : `${API_BASE_URL}/api/divisions/${divId}/participants`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -234,9 +235,15 @@ export default function Matches({ tournamentId, user, onNavigate }) {
       setError(null);
 
       // 1. Fetch group participants to check maxTeams capacity validation
-      const partResp = await fetch(`http://localhost:8080/api/divisions/${selectedDivisionId}/participants?groupId=${selectedGroupId}`);
+      const partResp = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivisionId}/participants?groupId=${selectedGroupId}`);
       if (!partResp.ok) throw new Error('Failed to retrieve group participants');
       const groupParticipants = await partResp.json();
+
+      if (groupParticipants.length < 2) {
+        alert("At least 2 participants are required in the group to auto-schedule matches.");
+        setLoading(false);
+        return;
+      }
 
       if (groupParticipants.length < division.maxTeams) {
         const proceed = window.confirm("The number of participants in the group is less than the maximum capacity. Do you still want to go ahead and create matches?");
@@ -256,7 +263,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
       }
 
       // 3. Call auto-schedule endpoint
-      const scheduleResp = await fetch(`http://localhost:8080/api/groups/${selectedGroupId}/auto-schedule`, {
+      const scheduleResp = await fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/auto-schedule`, {
         method: 'POST'
       });
 
@@ -270,7 +277,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
       alert("Matches created successfully");
     } catch (err) {
       console.error(err);
-      setError(err.message || 'Failed to auto-schedule matches. Please try again.');
+      alert(err.message || 'Failed to auto-schedule matches. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -314,7 +321,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
     };
 
     try {
-      const response = await fetch('http://localhost:8080/api/matches', {
+      const response = await fetch(`${API_BASE_URL}/api/matches`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -325,8 +332,8 @@ export default function Matches({ tournamentId, user, onNavigate }) {
         // Reload matches for the current view
         if (parseInt(formDivisionId) === parseInt(selectedDivisionId)) {
           const url = selectedGroupId
-            ? `http://localhost:8080/api/groups/${selectedGroupId}/matches`
-            : `http://localhost:8080/api/divisions/${selectedDivisionId}/matches`;
+            ? `${API_BASE_URL}/api/groups/${selectedGroupId}/matches`
+            : `${API_BASE_URL}/api/divisions/${selectedDivisionId}/matches`;
           const matchResponse = await fetch(url);
           if (matchResponse.ok) setMatches(await matchResponse.json());
         } else {

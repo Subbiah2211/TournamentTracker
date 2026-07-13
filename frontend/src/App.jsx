@@ -8,6 +8,7 @@ import Players from './components/Players';
 import Matches from './components/Matches';
 import AddResult from './components/AddResult';
 import Standings from './components/Standings';
+import { API_BASE_URL } from './config';
 import './App.css';
 
 function App() {
@@ -229,7 +230,7 @@ function App() {
     setMessage('');
 
     try {
-      const response = await fetch('http://localhost:8080/api/login', {
+      const response = await fetch(`${API_BASE_URL}/api/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

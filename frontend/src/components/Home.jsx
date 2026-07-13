@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function Home({ user, onNavigate, onTileClick }) {
   const [tournaments, setTournaments] = useState([]);
@@ -10,7 +11,7 @@ export default function Home({ user, onNavigate, onTileClick }) {
   useEffect(() => {
     const fetchTournaments = async () => {
       try {
-        const response = await fetch('http://localhost:8080/api/tournaments');
+        const response = await fetch(`${API_BASE_URL}/api/tournaments`);
         if (!response.ok) {
           throw new Error('Failed to fetch tournaments');
         }

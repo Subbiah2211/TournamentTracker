@@ -53,17 +53,31 @@ public class PlayerController {
     @GetMapping("/teams/{teamId}/players")
     public List<Player> getTeamPlayers(@PathVariable Long teamId) {
         List<TeamPlayer> teamPlayers = teamPlayerRepository.findByTeamId(teamId);
-        Map<Long, Integer> orderMap = teamPlayers.stream()
-                .filter(tp -> tp.getPlayerId() != null)
-                .collect(java.util.stream.Collectors.toMap(TeamPlayer::getPlayerId, tp -> tp.getPlayerOrder() != null ? tp.getPlayerOrder() : 0, (a, b) -> a));
+        // Sort teamPlayers by playerOrder ascending
+        teamPlayers.sort((tp1, tp2) -> Integer.compare(
+                tp1.getPlayerOrder() != null ? tp1.getPlayerOrder() : 0,
+                tp2.getPlayerOrder() != null ? tp2.getPlayerOrder() : 0
+        ));
 
-        List<Long> playerIds = teamPlayers.stream().map(TeamPlayer::getPlayerId).toList();
-        List<Player> players = new java.util.ArrayList<>(playerRepository.findAllById(playerIds));
-        for (Player p : players) {
-            p.setPlayerOrder(orderMap.getOrDefault(p.getId(), 0));
+        List<Player> result = new java.util.ArrayList<>();
+        for (TeamPlayer tp : teamPlayers) {
+            if (tp.getPlayerId() != null) {
+                playerRepository.findById(tp.getPlayerId()).ifPresent(player -> {
+                    Player displayPlayer = new Player();
+                    displayPlayer.setId(player.getId());
+                    displayPlayer.setFirstName(player.getFirstName());
+                    displayPlayer.setLastName(player.getLastName());
+                    displayPlayer.setEmail(player.getEmail());
+                    displayPlayer.setPhone(player.getPhone());
+                    displayPlayer.setGender(player.getGender());
+                    displayPlayer.setAge(player.getAge());
+                    displayPlayer.setSkillLevel(player.getSkillLevel());
+                    displayPlayer.setPlayerOrder(tp.getPlayerOrder() != null ? tp.getPlayerOrder() : 0);
+                    result.add(displayPlayer);
+                });
+            }
         }
-        players.sort((p1, p2) -> Integer.compare(p1.getPlayerOrder() != null ? p1.getPlayerOrder() : 0, p2.getPlayerOrder() != null ? p2.getPlayerOrder() : 0));
-        return players;
+        return result;
     }
 
     @GetMapping("/tournaments/{tournamentId}/participants")

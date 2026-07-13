@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function TournamentDetails({ tournamentId, user, onNavigate, onBack }) {
   const [tournament, setTournament] = useState(null);
@@ -15,7 +16,7 @@ export default function TournamentDetails({ tournamentId, user, onNavigate, onBa
       try {
         setLoading(true);
         setError(null);
-        const response = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}`);
+        const response = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}`);
         if (!response.ok) {
           throw new Error('Tournament not found or server error');
         }

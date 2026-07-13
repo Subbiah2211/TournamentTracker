@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function Divisions({ tournamentId, user, onNavigate, searchQuery }) {
   const [divisions, setDivisions] = useState([]);
@@ -41,7 +42,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
         setError(null);
         
         // Fetch list of divisions
-        const listResponse = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}/divisions`);
+        const listResponse = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/divisions`);
         if (!listResponse.ok) {
           throw new Error('Failed to load divisions list');
         }
@@ -67,7 +68,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
           setFormError('');
           setSubView('create');
         } else if (divisionId) {
-          const detailResponse = await fetch(`http://localhost:8080/api/divisions/${divisionId}`);
+          const detailResponse = await fetch(`${API_BASE_URL}/api/divisions/${divisionId}`);
           if (detailResponse.ok) {
             const detailData = await detailResponse.json();
             setSelectedDivision(detailData);
@@ -185,7 +186,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
     try {
       let response;
       if (subView === 'create') {
-        response = await fetch('http://localhost:8080/api/divisions', {
+        response = await fetch(`${API_BASE_URL}/api/divisions`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -196,7 +197,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
           alert('Group count cannot be reduced');
           payload.groupCount = selectedDivision.groupCount;
         }
-        response = await fetch(`http://localhost:8080/api/divisions/${selectedDivision.id}`, {
+        response = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivision.id}`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
@@ -210,7 +211,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
       
       // Fetch updated divisions list to ensure the list state contains the new division
       try {
-        const listResponse = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}/divisions`);
+        const listResponse = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/divisions`);
         if (listResponse.ok) {
           const listData = await listResponse.json();
           setDivisions(listData);

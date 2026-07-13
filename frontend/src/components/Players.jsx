@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { API_BASE_URL } from '../config';
 
 export default function Players({ tournamentId, user, onNavigate }) {
   const [participants, setParticipants] = useState([]);
@@ -110,17 +111,17 @@ export default function Players({ tournamentId, user, onNavigate }) {
         }
 
         // Fetch participants
-        const partRes = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}/participants`);
+        const partRes = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/participants`);
         if (!partRes.ok) throw new Error('Failed to load participants');
         const partData = await partRes.json();
 
         // Fetch divisions
-        const divRes = await fetch(`http://localhost:8080/api/tournaments/${tournamentId}/divisions`);
+        const divRes = await fetch(`${API_BASE_URL}/api/tournaments/${tournamentId}/divisions`);
         if (!divRes.ok) throw new Error('Failed to load divisions');
         const divData = await divRes.json();
 
         // Fetch players
-        const playerRes = await fetch('http://localhost:8080/api/players');
+        const playerRes = await fetch(`${API_BASE_URL}/api/players`);
         if (!playerRes.ok) throw new Error('Failed to load players');
         const playerData = await playerRes.json();
 
@@ -152,7 +153,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!p1SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/players/search?query=${encodeURIComponent(p1SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(p1SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setP1SearchResults(data);
@@ -169,7 +170,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!p2SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/players/search?query=${encodeURIComponent(p2SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(p2SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setP2SearchResults(data);
@@ -186,7 +187,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g1SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/players/search?query=${encodeURIComponent(g1SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g1SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG1SearchResults(data);
@@ -203,7 +204,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g2SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/players/search?query=${encodeURIComponent(g2SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g2SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG2SearchResults(data);
@@ -220,7 +221,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g3SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/players/search?query=${encodeURIComponent(g3SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g3SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG3SearchResults(data);
@@ -237,7 +238,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g4SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`http://localhost:8080/api/players/search?query=${encodeURIComponent(g4SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g4SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG4SearchResults(data);
@@ -260,7 +261,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
 
   const fetchGroupsForDivision = async (divId) => {
     try {
-      const res = await fetch(`http://localhost:8080/api/divisions/${divId}/groups`);
+      const res = await fetch(`${API_BASE_URL}/api/divisions/${divId}/groups`);
       if (res.ok) {
         const data = await res.json();
         setGroupsForDivision(data);
@@ -278,7 +279,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
   const handleAddGroup = async () => {
     if (!divisionId) return;
     try {
-      const res = await fetch(`http://localhost:8080/api/divisions/${divisionId}/groups`, { method: 'POST' });
+      const res = await fetch(`${API_BASE_URL}/api/divisions/${divisionId}/groups`, { method: 'POST' });
       if (res.ok) {
         const newGroup = await res.json();
         setGroupsForDivision(prev => [...prev, newGroup]);
@@ -313,7 +314,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     setLoading(true);
     try {
       if (participant.type !== 'Singles') {
-        const res = await fetch(`http://localhost:8080/api/teams/${participant.playerTeamId}/players`);
+        const res = await fetch(`${API_BASE_URL}/api/teams/${participant.playerTeamId}/players`);
         if (res.ok) {
           const playersList = await res.json();
           setSelectedTeamPlayers(playersList);
@@ -588,25 +589,6 @@ export default function Players({ tournamentId, user, onNavigate }) {
     validatePlayer(3, g3FirstName, g3LastName, g3Email);
     validatePlayer(4, g4FirstName, g4LastName, g4Email);
 
-    // Overlap email check
-    const emails = [
-      g1Email.trim().toLowerCase(),
-      g2Email.trim().toLowerCase(),
-      g3Email.trim().toLowerCase(),
-      g4Email.trim().toLowerCase()
-    ].filter(Boolean);
-
-    const uniqueEmails = new Set(emails);
-    if (uniqueEmails.size !== emails.length) {
-      setFormError('All players in the team must have unique email addresses');
-      const counts = {};
-      emails.forEach(e => counts[e] = (counts[e] || 0) + 1);
-      if (counts[g1Email.trim().toLowerCase()] > 1) errors.g1Email = 'Duplicate email inside team';
-      if (counts[g2Email.trim().toLowerCase()] > 1) errors.g2Email = 'Duplicate email inside team';
-      if (counts[g3Email.trim().toLowerCase()] > 1) errors.g3Email = 'Duplicate email inside team';
-      if (counts[g4Email.trim().toLowerCase()] > 1) errors.g4Email = 'Duplicate email inside team';
-    }
-
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -634,7 +616,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     };
 
     try {
-      const response = await fetch('http://localhost:8080/api/players/singles', {
+      const response = await fetch(`${API_BASE_URL}/api/players/singles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -696,7 +678,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     };
 
     try {
-      const response = await fetch('http://localhost:8080/api/teams/doubles', {
+      const response = await fetch(`${API_BASE_URL}/api/teams/doubles`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -735,6 +717,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     setFormLoading(true);
     const payload = {
       divisionId: parseInt(divisionId),
+      groupId: groupId ? parseInt(groupId) : null,
       teamName: genericTeamName.trim(),
       players: [
         {
@@ -777,7 +760,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     };
 
     try {
-      const response = await fetch('http://localhost:8080/api/teams/generic', {
+      const response = await fetch(`${API_BASE_URL}/api/teams/generic`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -846,12 +829,12 @@ export default function Players({ tournamentId, user, onNavigate }) {
         setFormError('');
         setSubView('edit-singles');
       } else {
-        const resTeam = await fetch(`http://localhost:8080/api/teams/${participant.playerTeamId}`);
+        const resTeam = await fetch(`${API_BASE_URL}/api/teams/${participant.playerTeamId}`);
         if (!resTeam.ok) throw new Error("Failed to load team details");
         const teamObj = await resTeam.json();
 
         // Fetch team players
-        const resPlayers = await fetch(`http://localhost:8080/api/teams/${participant.playerTeamId}/players`);
+        const resPlayers = await fetch(`${API_BASE_URL}/api/teams/${participant.playerTeamId}/players`);
         let teamPlayers = [];
         if (resPlayers.ok) teamPlayers = await resPlayers.json();
 
@@ -962,7 +945,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
 
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8080/api/participants/${participant.id}`, {
+      const res = await fetch(`${API_BASE_URL}/api/participants/${participant.id}`, {
         method: 'DELETE',
       });
 
@@ -1001,7 +984,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     };
 
     try {
-      const response = await fetch(`http://localhost:8080/api/players/singles/${selectedParticipant.playerTeamId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/players/singles/${selectedParticipant.playerTeamId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1063,7 +1046,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     };
 
     try {
-      const response = await fetch(`http://localhost:8080/api/teams/doubles/${selectedParticipant.playerTeamId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/teams/doubles/${selectedParticipant.playerTeamId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1145,7 +1128,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     };
 
     try {
-      const response = await fetch(`http://localhost:8080/api/teams/generic/${selectedParticipant.playerTeamId}`, {
+      const response = await fetch(`${API_BASE_URL}/api/teams/generic/${selectedParticipant.playerTeamId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload)
@@ -1263,7 +1246,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
                         // Fetch groups for this division if not already cached
                         if (willExpand && !groupsByDivision[div.id]) {
                           try {
-                            const res = await fetch(`http://localhost:8080/api/divisions/${div.id}/groups`);
+                            const res = await fetch(`${API_BASE_URL}/api/divisions/${div.id}/groups`);
                             if (res.ok) {
                               const data = await res.json();
                               setGroupsByDivision(prev => ({ ...prev, [div.id]: data }));

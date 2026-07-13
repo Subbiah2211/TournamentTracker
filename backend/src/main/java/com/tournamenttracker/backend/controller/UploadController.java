@@ -6,6 +6,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import jakarta.servlet.http.HttpServletRequest;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -22,7 +23,7 @@ public class UploadController {
     private static final String UPLOAD_DIR = "uploads";
 
     @PostMapping("/upload")
-    public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile file) {
+    public ResponseEntity<Map<String, Object>> uploadFile(@RequestParam("file") MultipartFile file, HttpServletRequest request) {
         Map<String, Object> response = new HashMap<>();
         
         if (file.isEmpty()) {
@@ -50,7 +51,20 @@ public class UploadController {
             Path filePath = uploadPath.resolve(filename);
             Files.copy(file.getInputStream(), filePath);
 
-            String fileUrl = "http://localhost:8080/uploads/" + filename;
+            // Dynamically construct upload base URL based on incoming request context
+            String scheme = request.getScheme();
+            String serverName = request.getServerName();
+            int serverPort = request.getServerPort();
+            String contextPath = request.getContextPath();
+            
+            StringBuilder baseUrl = new StringBuilder();
+            baseUrl.append(scheme).append("://").append(serverName);
+            if (("http".equals(scheme) && serverPort != 80) || ("https".equals(scheme) && serverPort != 443)) {
+                baseUrl.append(":").append(serverPort);
+            }
+            baseUrl.append(contextPath);
+
+            String fileUrl = baseUrl.toString() + "/uploads/" + filename;
             response.put("success", true);
             response.put("url", fileUrl);
             return ResponseEntity.ok(response);
