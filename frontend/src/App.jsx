@@ -8,6 +8,7 @@ import Players from './components/Players';
 import Matches from './components/Matches';
 import AddResult from './components/AddResult';
 import Standings from './components/Standings';
+import Courts from './components/Courts';
 import { API_BASE_URL } from './config';
 import './App.css';
 
@@ -54,6 +55,9 @@ function App() {
     } else if (page === 'matches') {
       const tId = params.tournamentId || selectedTournamentId;
       url = `/matches?tournamentId=${tId}`;
+      if (params.divisionId) {
+        url += `&divisionId=${params.divisionId}`;
+      }
     } else if (page === 'add-result') {
       const tId = params.tournamentId || selectedTournamentId;
       url = `/add-result?tournamentId=${tId}`;
@@ -65,6 +69,8 @@ function App() {
       url = `/standings?tournamentId=${tId}`;
     } else if (page === 'home') {
       url = '/home';
+    } else if (page === 'courts') {
+      url = '/courts';
     } else if (page === 'login') {
       url = '/';
     }
@@ -132,6 +138,8 @@ function App() {
       } else if (path === '/standings') {
         targetPage = 'standings';
         targetTournamentId = params.get('tournamentId');
+      } else if (path === '/courts') {
+        targetPage = 'courts';
       } else if (path === '/home') {
         targetPage = 'home';
       } else if (path === '/') {
@@ -199,6 +207,8 @@ function App() {
         } else if (path === '/standings') {
           targetPage = 'standings';
           targetTournamentId = params.get('tournamentId');
+        } else if (path === '/courts') {
+          targetPage = 'courts';
         } else if (path === '/home') {
           targetPage = 'home';
         }
@@ -502,6 +512,7 @@ function App() {
             tournamentId={selectedTournamentId}
             user={user}
             onNavigate={navigate}
+            searchQuery={currentSearchQuery}
           />
         ) : currentPage === 'add-result' ? (
           <AddResult 
@@ -515,6 +526,11 @@ function App() {
           <Standings 
             key={`${selectedTournamentId}-${currentSearchQuery}`}
             tournamentId={selectedTournamentId}
+            user={user}
+            onNavigate={navigate}
+          />
+        ) : currentPage === 'courts' ? (
+          <Courts 
             user={user}
             onNavigate={navigate}
           />

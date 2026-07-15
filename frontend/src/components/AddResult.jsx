@@ -13,6 +13,8 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
   const [startTime, setStartTime] = useState('');
   const [endTime, setEndTime] = useState('');
   const [round, setRound] = useState('');
+  const [courtId, setCourtId] = useState('');
+  const [courts, setCourts] = useState([]);
 
   // Score states
   const [set1P1, setSet1P1] = useState('');
@@ -73,6 +75,18 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     if (!canEditResults) {
       setLoading(false);
     }
+  }, [canEditResults]);
+
+  useEffect(() => {
+    const fetchCourts = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/courts`);
+        if (res.ok) setCourts(await res.json());
+      } catch (err) {
+        console.error('Failed to fetch courts', err);
+      }
+    };
+    if (canEditResults) fetchCourts();
   }, [canEditResults]);
 
   // 1. Fetch Divisions & Pre-populate if queryMatchId exists
@@ -160,6 +174,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
       setStartTime('');
       setEndTime('');
       setRound('');
+      setCourtId('');
       return;
     }
 
@@ -184,6 +199,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           setStartTime(activeMatchData.startTime || '');
           setEndTime(activeMatchData.endTime || '');
           setRound(activeMatchData.round !== null && activeMatchData.round !== undefined ? String(activeMatchData.round) : '');
+          setCourtId(activeMatchData.courtId ? String(activeMatchData.courtId) : '');
         }
 
         // Fetch result for the match
@@ -388,7 +404,8 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         matchDate: matchDate || null,
         startTime: startTime || null,
         endTime: endTime || null,
-        round: round ? parseInt(round) : null
+        round: round ? parseInt(round) : null,
+        courtId: courtId ? parseInt(courtId) : null
       };
 
       const matchResponse = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}`, {
@@ -431,8 +448,8 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         }
       }
 
-      alert('Match details and results saved successfully');
-      onNavigate('matches', { tournamentId });
+      alert('Result successfully saved!');
+      onNavigate('matches', { tournamentId, divisionId: selectedDivisionId });
     } catch (err) {
       console.error(err);
       setFormError(err.message || 'Failed to save changes. Please check if the backend is running.');
@@ -623,6 +640,14 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
 
   return (
     <div className="matches-page-container" style={{ maxWidth: '800px' }}>
+      <button className="back-btn" onClick={() => onNavigate('matches', { tournamentId, divisionId: selectedDivisionId })} style={{ marginBottom: '1.5rem' }}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="19" y1="12" x2="5" y2="12"></line>
+          <polyline points="12 19 5 12 12 5"></polyline>
+        </svg>
+        Cancel
+      </button>
+
       <header className="page-header-section" style={{ textAlign: 'left', marginBottom: '2rem' }}>
         <h1 className="title" style={{ textAlign: 'left', background: 'linear-gradient(135deg, #fff 30%, var(--primary) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
           Edit Match Details / Add Results
@@ -711,6 +736,21 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
                       disabled={formLoading}
                     />
                     {validationErrors.round && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.round}</span>}
+                  </div>
+                  <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                    <label htmlFor="mCourt" className="form-label">Court (Optional)</label>
+                    <select
+                      id="mCourt"
+                      className="form-input form-select"
+                      value={courtId}
+                      onChange={(e) => setCourtId(e.target.value)}
+                      disabled={formLoading}
+                    >
+                      <option value="">Select court...</option>
+                      {courts.map((c) => (
+                        <option key={c.id} value={c.id}>{c.courtName}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
                 <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
@@ -863,14 +903,24 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
                 </div>
               )}
 
-            <button
-              type="submit"
-              className="submit-btn"
-              disabled={formLoading}
-              style={{ marginTop: '1.5rem', minHeight: '48px', width: '100%' }}
-            >
-              {formLoading ? <div className="spinner" aria-label="Saving" /> : 'Save Changes'}
-            </button>
+            <div className="form-actions-row">
+              <button
+                type="button"
+                className="form-cancel-btn"
+                onClick={() => onNavigate('matches', { tournamentId, divisionId: selectedDivisionId })}
+                disabled={formLoading}
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="submit-btn"
+                disabled={formLoading}
+                style={{ marginTop: 0, flex: 1, minHeight: '48px' }}
+              >
+                {formLoading ? <div className="spinner" aria-label="Saving" /> : 'Save Changes'}
+              </button>
+            </div>
           </div>
           )}
         </form>

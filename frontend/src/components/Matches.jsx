@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 
-export default function Matches({ tournamentId, user, onNavigate }) {
+export default function Matches({ tournamentId, user, onNavigate, searchQuery }) {
   const [divisions, setDivisions] = useState([]);
   const [selectedDivisionId, setSelectedDivisionId] = useState(null);
   const [matches, setMatches] = useState([]);
   const [participants, setParticipants] = useState([]);
+  const [courts, setCourts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -27,6 +28,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
   const [endTime, setEndTime] = useState('');
   const [round, setRound] = useState('');
   const [selectedRoundFilter, setSelectedRoundFilter] = useState('all');
+  const [courtId, setCourtId] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
@@ -47,7 +49,13 @@ export default function Matches({ tournamentId, user, onNavigate }) {
         if (!response.ok) throw new Error('Failed to load divisions');
         const data = await response.json();
         setDivisions(data);
-        if (data.length > 0) {
+        
+        const params = new URLSearchParams(searchQuery || '');
+        const divId = params.get('divisionId');
+        
+        if (divId && data.some(d => d.id === parseInt(divId))) {
+          setSelectedDivisionId(parseInt(divId));
+        } else if (data.length > 0) {
           setSelectedDivisionId(data[0].id);
         } else {
           setLoading(false);
@@ -58,7 +66,16 @@ export default function Matches({ tournamentId, user, onNavigate }) {
         setLoading(false);
       }
     };
+    const fetchCourts = async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/courts`);
+        if (res.ok) setCourts(await res.json());
+      } catch (err) {
+        console.error('Failed to load courts', err);
+      }
+    };
     loadDivisions();
+    fetchCourts();
   }, [tournamentId]);
 
   // 2. Fetch Groups when selected division changes (list view)
@@ -173,6 +190,7 @@ export default function Matches({ tournamentId, user, onNavigate }) {
     setStartTime('');
     setEndTime('');
     setRound('');
+    setCourtId('');
     setFormError('');
     setValidationErrors({});
     setSubView('create');
@@ -317,7 +335,8 @@ export default function Matches({ tournamentId, user, onNavigate }) {
       matchDate: matchDate || null,
       startTime: startTime || null,
       endTime: endTime || null,
-      round: round ? parseInt(round) : null
+      round: round ? parseInt(round) : null,
+      courtId: courtId ? parseInt(courtId) : null
     };
 
     try {
@@ -771,6 +790,21 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                   />
                   {validationErrors.round && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.round}</span>}
                 </div>
+                <div className="form-group flex-1" style={{ minWidth: '200px' }}>
+                  <label htmlFor="mCourt" className="form-label">Court (Optional)</label>
+                  <select
+                    id="mCourt"
+                    className="form-input form-select"
+                    value={courtId}
+                    onChange={(e) => setCourtId(e.target.value)}
+                    disabled={formLoading}
+                  >
+                    <option value="">Select court...</option>
+                    {courts.map((c) => (
+                      <option key={c.id} value={c.id}>{c.courtName}</option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Start/End Time */}
@@ -785,9 +819,19 @@ export default function Matches({ tournamentId, user, onNavigate }) {
                 </div>
               </div>
 
-              <button type="submit" className="submit-btn" disabled={formLoading} style={{ marginTop: '1rem', minHeight: '48px' }}>
-                {formLoading ? <div className="spinner" aria-label="Saving" /> : 'Create Match'}
-              </button>
+              <div className="form-actions-row">
+                <button
+                  type="button"
+                  className="form-cancel-btn"
+                  onClick={() => setSubView('list')}
+                  disabled={formLoading}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="submit-btn" disabled={formLoading} style={{ marginTop: 0, flex: 1, minHeight: '48px' }}>
+                  {formLoading ? <div className="spinner" aria-label="Saving" /> : 'Create Match'}
+                </button>
+              </div>
             </form>
           </div>
         </div>

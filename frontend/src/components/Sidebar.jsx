@@ -5,6 +5,7 @@ export default function Sidebar({ currentPage, setCurrentPage, selectedTournamen
   };
 
   const isAdminOrEditor = user && (user.role === 'admin' || user.role === 'editor');
+  const isAdmin = user && user.role === 'admin';
 
   return (
     <>
@@ -62,6 +63,20 @@ export default function Sidebar({ currentPage, setCurrentPage, selectedTournamen
             </svg>
             {!isCollapsed && <span className="nav-label">Home</span>}
           </button>
+
+          {isAdmin && (
+            <button 
+              className={`nav-item ${currentPage === 'courts' ? 'active' : ''}`}
+              onClick={() => handleNav('courts')}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+                <line x1="9" y1="21" x2="9" y2="9"></line>
+              </svg>
+              {!isCollapsed && <span className="nav-label">Manage Courts</span>}
+            </button>
+          )}
 
           {selectedTournamentId && (
             <button 

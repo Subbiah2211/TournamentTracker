@@ -45,6 +45,9 @@ public class Match {
     @Column(name = "round")
     private Integer round;
 
+    @Column(name = "court_id")
+    private Long courtId;
+
     public Match() {}
 
     public Match(Long divisionId, Long tournamentId, Long participant1, Long participant2,
@@ -137,5 +140,13 @@ public class Match {
 
     public void setRound(Integer round) {
         this.round = round;
+    }
+
+    public Long getCourtId() {
+        return courtId;
+    }
+
+    public void setCourtId(Long courtId) {
+        this.courtId = courtId;
     }
 }

@@ -94,6 +94,7 @@ public class MatchController {
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
+            res.setCourtId(m.getCourtId());
             res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
             res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
 
@@ -150,6 +151,7 @@ public class MatchController {
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
+            res.setCourtId(m.getCourtId());
             res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
             res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
             Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
@@ -183,6 +185,7 @@ public class MatchController {
             res.setStartTime(m.getStartTime());
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
+            res.setCourtId(m.getCourtId());
             res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
             res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
 
@@ -203,6 +206,7 @@ public class MatchController {
             existingMatch.setStartTime(updatedMatch.getStartTime());
             existingMatch.setEndTime(updatedMatch.getEndTime());
             existingMatch.setRound(updatedMatch.getRound());
+            existingMatch.setCourtId(updatedMatch.getCourtId());
             Match saved = matchRepository.save(existingMatch);
             return ResponseEntity.ok(saved);
         }).orElse(ResponseEntity.notFound().build());
@@ -487,6 +491,7 @@ public class MatchController {
         private LocalTime endTime;
         private String p1Status;
         private String p2Status;
+        private Long courtId;
 
         public Long getMatchId() {
             return matchId;
@@ -590,6 +595,14 @@ public class MatchController {
 
         public void setP2Status(String p2Status) {
             this.p2Status = p2Status;
+        }
+
+        public Long getCourtId() {
+            return courtId;
+        }
+
+        public void setCourtId(Long courtId) {
+            this.courtId = courtId;
         }
 
         private Integer round;
