@@ -407,7 +407,19 @@ public class MatchController {
 
     @PostMapping("/groups/{groupId}/auto-schedule")
     @Transactional
-    public ResponseEntity<?> autoScheduleGroupMatches(@PathVariable Long groupId) {
+    public ResponseEntity<?> autoScheduleGroupMatches(
+            @PathVariable Long groupId,
+            @RequestBody(required = false) AutoScheduleRequest scheduleRequest) {
+
+        String mode = (scheduleRequest != null && scheduleRequest.getMode() != null)
+                ? scheduleRequest.getMode() : "rounds";
+        int value = (scheduleRequest != null && scheduleRequest.getValue() >= 1)
+                ? scheduleRequest.getValue() : 1;
+
+        if (!mode.equals("rounds") && !mode.equals("matches")) {
+            return ResponseEntity.badRequest().body("Invalid mode. Use 'rounds' or 'matches'.");
+        }
+
         Optional<Group> groupOpt = groupRepository.findById(groupId);
         if (groupOpt.isEmpty()) {
             return ResponseEntity.notFound().build();
@@ -431,51 +443,168 @@ public class MatchController {
             matchRepository.delete(m);
         }
 
-        // 2. Generate Round Robin matches using the circle method
-        int n = participants.size();
-        boolean isOdd = (n % 2 != 0);
-        int numElements = isOdd ? n + 1 : n;
-
-        List<Long> schedulerList = new ArrayList<>();
-        for (Participant p : participants) {
-            schedulerList.add(p.getId());
-        }
-        if (isOdd) {
-            schedulerList.add(null); // dummy bye element
-        }
-
-        int totalRounds = numElements - 1;
-        int matchesPerRound = numElements / 2;
-
-        List<Match> createdMatches = new ArrayList<>();
-
-        for (int roundNum = 1; roundNum <= totalRounds; roundNum++) {
-            for (int i = 0; i < matchesPerRound; i++) {
-                Long home = schedulerList.get(i);
-                Long away = schedulerList.get(numElements - 1 - i);
-
-                if (home != null && away != null) {
-                    Match match = new Match();
-                    match.setTournamentId(division.getTournamentId());
-                    match.setDivisionId(division.getId());
-                    match.setGroupId(groupId);
-                    match.setParticipant1(home);
-                    match.setParticipant2(away);
-                    match.setRound(roundNum);
-                    // Date and time are left null
-                    createdMatches.add(match);
-                }
-            }
-            // Rotate list: keep first element fixed, shift the rest
-            Long last = schedulerList.remove(schedulerList.size() - 1);
-            schedulerList.add(1, last);
-        }
+        // 2. Generate matches based on chosen mode
+        List<Match> createdMatches = mode.equals("rounds")
+                ? generateRoundRobinMatches(participants, value, division, groupId)
+                : generateMatchesPerTeam(participants, value, division, groupId);
 
         matchRepository.saveAll(createdMatches);
 
-        // Resolve names for the returned Matches list, ordered by round
         return ResponseEntity.ok(getMatchesByGroup(groupId));
     }
+
+    /**
+     * Mode 1 – N-Round Robin: each team plays every other team exactly N times.
+     * Uses the circle (polygon rotation) algorithm, run N passes with sequential round numbers.
+     */
+    private List<Match> generateRoundRobinMatches(List<Participant> participants, int numPasses,
+                                                   Division division, Long groupId) {
+        int n = participants.size();
+        boolean isOdd = (n % 2 != 0);
+
+        List<Long> originalOrder = new ArrayList<>();
+        for (Participant p : participants) originalOrder.add(p.getId());
+        if (isOdd) originalOrder.add(null); // dummy bye element
+
+        int numElements = originalOrder.size();
+        int totalRoundsPerPass = numElements - 1;
+        int matchesPerRound = numElements / 2;
+
+        List<Match> createdMatches = new ArrayList<>();
+        int globalRound = 0;
+
+        for (int pass = 0; pass < numPasses; pass++) {
+            List<Long> schedulerList = new ArrayList<>(originalOrder);
+            for (int roundNum = 1; roundNum <= totalRoundsPerPass; roundNum++) {
+                globalRound++;
+                for (int i = 0; i < matchesPerRound; i++) {
+                    Long home = schedulerList.get(i);
+                    Long away = schedulerList.get(numElements - 1 - i);
+                    if (home != null && away != null) {
+                        Match match = new Match();
+                        match.setTournamentId(division.getTournamentId());
+                        match.setDivisionId(division.getId());
+                        match.setGroupId(groupId);
+                        match.setParticipant1(home);
+                        match.setParticipant2(away);
+                        match.setRound(globalRound);
+                        createdMatches.add(match);
+                    }
+                }
+                // Rotate list: keep first element fixed, shift the rest
+                Long last = schedulerList.remove(schedulerList.size() - 1);
+                schedulerList.add(1, last);
+            }
+        }
+        return createdMatches;
+    }
+
+    /**
+     * Mode 2 – Total Matches Per Team: each team plays exactly M matches
+     * (or M-1 for at most one team when n×M is odd).
+     *
+     * Algorithm:
+     *  - Greedy pair selection: always pick the pair with the highest combined remaining-match
+     *    count; break ties by choosing the pair that has played each other the least.
+     *  - Fairness cap: no pair plays more than ceil(M / (n-1)) times.
+     *  - After all pairs are selected, assign matches to rounds using earliest-available-round
+     *    scheduling (no team plays twice in the same round).
+     */
+    private List<Match> generateMatchesPerTeam(List<Participant> participants, int targetM,
+                                                Division division, Long groupId) {
+        int n = participants.size();
+        // No pair should face each other more than this many times
+        int maxPairPlays = (int) Math.ceil((double) targetM / (n - 1));
+
+        int[] matchesNeeded = new int[n];
+        Arrays.fill(matchesNeeded, targetM);
+        int[][] pairCount = new int[n][n];
+
+        // If n×M is odd, floor division means one team ends up playing M-1 (acceptable)
+        int totalMatchesTarget = (n * targetM) / 2;
+
+        List<int[]> matchIndexPairs = new ArrayList<>();
+
+        while (matchIndexPairs.size() < totalMatchesTarget) {
+            int bestI = -1, bestJ = -1;
+            int bestCombined = -1;
+            int bestPairs = Integer.MAX_VALUE;
+
+            for (int i = 0; i < n; i++) {
+                if (matchesNeeded[i] <= 0) continue;
+                for (int j = i + 1; j < n; j++) {
+                    if (matchesNeeded[j] <= 0) continue;
+                    if (pairCount[i][j] >= maxPairPlays) continue;
+                    int combined = matchesNeeded[i] + matchesNeeded[j];
+                    if (combined > bestCombined
+                            || (combined == bestCombined && pairCount[i][j] < bestPairs)) {
+                        bestI = i;
+                        bestJ = j;
+                        bestCombined = combined;
+                        bestPairs = pairCount[i][j];
+                    }
+                }
+            }
+
+            if (bestI == -1) break; // n×M is odd — one team naturally gets M-1
+
+            matchIndexPairs.add(new int[]{bestI, bestJ});
+            matchesNeeded[bestI]--;
+            matchesNeeded[bestJ]--;
+            pairCount[bestI][bestJ]++;
+            pairCount[bestJ][bestI]++;
+        }
+
+        // Assign matches to rounds: earliest round where neither participant already has a match
+        List<boolean[]> roundSlots = new ArrayList<>();
+        List<Match> result = new ArrayList<>();
+
+        for (int[] pair : matchIndexPairs) {
+            int pi = pair[0];
+            int pj = pair[1];
+            int assignedRound = -1;
+
+            for (int r = 0; r < roundSlots.size(); r++) {
+                boolean[] used = roundSlots.get(r);
+                if (!used[pi] && !used[pj]) {
+                    used[pi] = true;
+                    used[pj] = true;
+                    assignedRound = r + 1;
+                    break;
+                }
+            }
+            if (assignedRound == -1) {
+                boolean[] newRound = new boolean[n];
+                newRound[pi] = true;
+                newRound[pj] = true;
+                roundSlots.add(newRound);
+                assignedRound = roundSlots.size();
+            }
+
+            Match match = new Match();
+            match.setTournamentId(division.getTournamentId());
+            match.setDivisionId(division.getId());
+            match.setGroupId(groupId);
+            match.setParticipant1(participants.get(pi).getId());
+            match.setParticipant2(participants.get(pj).getId());
+            match.setRound(assignedRound);
+            result.add(match);
+        }
+
+        return result;
+    }
+
+    public static class AutoScheduleRequest {
+        private String mode;  // "rounds" | "matches"
+        private int value;    // N rounds per opponent OR M total matches per team
+
+        public String getMode() { return mode; }
+        public void setMode(String mode) { this.mode = mode; }
+        public int getValue() { return value; }
+        public void setValue(int value) { this.value = value; }
+    }
+
+
 
     public static class MatchResponse {
         private Long matchId;

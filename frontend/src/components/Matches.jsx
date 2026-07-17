@@ -28,10 +28,17 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
   const [endTime, setEndTime] = useState('');
   const [round, setRound] = useState('');
   const [selectedRoundFilter, setSelectedRoundFilter] = useState('all');
+  const [selectedTeamFilter, setSelectedTeamFilter] = useState('all');
   const [courtId, setCourtId] = useState('');
   const [formLoading, setFormLoading] = useState(false);
   const [formError, setFormError] = useState('');
   const [validationErrors, setValidationErrors] = useState({});
+
+  // Auto-schedule options panel state
+  const [showScheduleOptions, setShowScheduleOptions] = useState(false);
+  const [scheduleMode, setScheduleMode] = useState('rounds');
+  const [scheduleRoundsValue, setScheduleRoundsValue] = useState(1);
+  const [scheduleMatchesValue, setScheduleMatchesValue] = useState(1);
 
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
   const [completedExpanded, setCompletedExpanded] = useState(false);
@@ -211,10 +218,26 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
   // Extract distinct rounds from the full matches list
   const availableRounds = [...new Set(matches.map(m => m.round).filter(Boolean))].sort((a, b) => a - b);
 
-  // Apply round filter
-  const filteredMatches = selectedRoundFilter === 'all'
+  // Extract distinct teams (participants) from the current match list — auto-updates with every filter change
+  const filterableTeams = Object.values(
+    matches.reduce((acc, m) => {
+      if (m.participant1 && !acc[m.participant1]) acc[m.participant1] = { id: m.participant1, name: m.participant1Name };
+      if (m.participant2 && !acc[m.participant2]) acc[m.participant2] = { id: m.participant2, name: m.participant2Name };
+      return acc;
+    }, {})
+  ).sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+
+  // Apply round filter, then team filter
+  const afterRoundFilter = selectedRoundFilter === 'all'
     ? matches
     : matches.filter(m => m.round === parseInt(selectedRoundFilter));
+
+  const filteredMatches = selectedTeamFilter === 'all'
+    ? afterRoundFilter
+    : afterRoundFilter.filter(m =>
+        String(m.participant1) === selectedTeamFilter ||
+        String(m.participant2) === selectedTeamFilter
+      );
 
   // Partition matches into Upcoming vs Completed (handling null matchDate as upcoming)
   const upcomingMatches = filteredMatches.filter(m => !m.matchDate || m.matchDate >= todayStr);
@@ -242,7 +265,7 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
   const displayedUpcoming = upcomingExpanded ? sortedUpcoming : sortedUpcoming.slice(0, 3);
   const displayedCompleted = completedExpanded ? sortedCompleted : sortedCompleted.slice(0, 3);
 
-  const handleAutoSchedule = async () => {
+  const handleAutoSchedule = async (mode, value) => {
     if (!selectedGroupId || !selectedDivisionId) return;
 
     const division = divisions.find(d => d.id === selectedDivisionId);
@@ -252,7 +275,7 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
       setLoading(true);
       setError(null);
 
-      // 1. Fetch group participants to check maxTeams capacity validation
+      // 1. Fetch group participants to check capacity
       const partResp = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivisionId}/participants?groupId=${selectedGroupId}`);
       if (!partResp.ok) throw new Error('Failed to retrieve group participants');
       const groupParticipants = await partResp.json();
@@ -280,9 +303,11 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
         }
       }
 
-      // 3. Call auto-schedule endpoint
+      // 3. Call auto-schedule endpoint with mode and value
       const scheduleResp = await fetch(`${API_BASE_URL}/api/groups/${selectedGroupId}/auto-schedule`, {
-        method: 'POST'
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ mode, value })
       });
 
       if (!scheduleResp.ok) {
@@ -292,6 +317,7 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
 
       const updatedMatches = await scheduleResp.json();
       setMatches(updatedMatches);
+      setShowScheduleOptions(false);
       alert("Matches created successfully");
     } catch (err) {
       console.error(err);
@@ -428,8 +454,10 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                         setSelectedDivisionId(parseInt(e.target.value));
                         setSelectedGroupId(null);
                         setSelectedRoundFilter('all');
+                        setSelectedTeamFilter('all');
                         setUpcomingExpanded(false);
                         setCompletedExpanded(false);
+                        setShowScheduleOptions(false);
                       }}
                       style={{ minHeight: '48px', cursor: 'pointer' }}
                     >
@@ -449,8 +477,10 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                         onChange={(e) => {
                           setSelectedGroupId(parseInt(e.target.value));
                           setSelectedRoundFilter('all');
+                          setSelectedTeamFilter('all');
                           setUpcomingExpanded(false);
                           setCompletedExpanded(false);
+                          setShowScheduleOptions(false);
                         }}
                         style={{ minHeight: '48px', cursor: 'pointer' }}
                       >
@@ -468,7 +498,7 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                         id="roundSelect"
                         className="form-input form-select"
                         value={selectedRoundFilter}
-                        onChange={(e) => setSelectedRoundFilter(e.target.value)}
+                        onChange={(e) => { setSelectedRoundFilter(e.target.value); }}
                         style={{ minHeight: '48px', cursor: 'pointer' }}
                       >
                         <option value="all">All Rounds</option>
@@ -478,24 +508,117 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                       </select>
                     </div>
                   )}
+
+                  {filterableTeams.length > 0 && (
+                    <div className="form-group" style={{ margin: 0, minWidth: '180px', flex: '1' }}>
+                      <label htmlFor="teamSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Team</label>
+                      <select
+                        id="teamSelect"
+                        className="form-input form-select"
+                        value={selectedTeamFilter}
+                        onChange={(e) => setSelectedTeamFilter(e.target.value)}
+                        style={{ minHeight: '48px', cursor: 'pointer' }}
+                      >
+                        <option value="all">All Teams</option>
+                        {filterableTeams.map((t) => (
+                          <option key={t.id} value={String(t.id)}>{t.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
                 </div>
 
                 {isAdmin && (
-                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                     {selectedGroupId && (
-                      <button
-                        className="admin-btn auto-schedule-btn"
-                        onClick={handleAutoSchedule}
-                        style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '48px', padding: '0 1.25rem', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.25s' }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                          <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
-                          <line x1="16" y1="2" x2="16" y2="6"></line>
-                          <line x1="8" y1="2" x2="8" y2="6"></line>
-                          <line x1="3" y1="10" x2="21" y2="10"></line>
-                        </svg>
-                        Auto-schedule Group matches
-                      </button>
+                      showScheduleOptions ? (
+                        /* ── Inline scheduling options panel ── */
+                        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.25rem 1.5rem', minWidth: '310px' }}>
+                          <p style={{ fontSize: '0.9rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 1rem 0' }}>Auto-Schedule Options</p>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem', marginBottom: '1.25rem' }}>
+
+                            {/* Mode 1: rounds per opponent */}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                              <input
+                                type="radio"
+                                name="scheduleMode"
+                                value="rounds"
+                                checked={scheduleMode === 'rounds'}
+                                onChange={() => setScheduleMode('rounds')}
+                                style={{ accentColor: 'var(--primary)', width: '16px', height: '16px', flexShrink: 0 }}
+                              />
+                              <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                Each team plays every other team
+                                <input
+                                  type="number"
+                                  min="1"
+                                  max="20"
+                                  value={scheduleRoundsValue}
+                                  onChange={(e) => { setScheduleMode('rounds'); setScheduleRoundsValue(Math.max(1, parseInt(e.target.value) || 1)); }}
+                                  onClick={() => setScheduleMode('rounds')}
+                                  style={{ width: '54px', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.08)', color: 'var(--text-primary)', textAlign: 'center', fontSize: '0.875rem' }}
+                                />
+                                time(s)
+                              </span>
+                            </label>
+
+                            {/* Mode 2: total matches per team */}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer' }}>
+                              <input
+                                type="radio"
+                                name="scheduleMode"
+                                value="matches"
+                                checked={scheduleMode === 'matches'}
+                                onChange={() => setScheduleMode('matches')}
+                                style={{ accentColor: 'var(--primary)', width: '16px', height: '16px', flexShrink: 0 }}
+                              />
+                              <span style={{ fontSize: '0.875rem', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                                Each team plays
+                                <input
+                                  type="number"
+                                  min="1"
+                                  value={scheduleMatchesValue}
+                                  onChange={(e) => { setScheduleMode('matches'); setScheduleMatchesValue(Math.max(1, parseInt(e.target.value) || 1)); }}
+                                  onClick={() => setScheduleMode('matches')}
+                                  style={{ width: '54px', padding: '3px 6px', borderRadius: '6px', border: '1px solid var(--glass-border)', background: 'rgba(255,255,255,0.08)', color: 'var(--text-primary)', textAlign: 'center', fontSize: '0.875rem' }}
+                                />
+                                total matches
+                              </span>
+                            </label>
+
+                          </div>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              className="form-cancel-btn"
+                              onClick={() => setShowScheduleOptions(false)}
+                              style={{ flex: 1, minHeight: '40px' }}
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              className="submit-btn"
+                              style={{ flex: 2, minHeight: '40px', marginTop: 0 }}
+                              onClick={() => handleAutoSchedule(scheduleMode, scheduleMode === 'rounds' ? scheduleRoundsValue : scheduleMatchesValue)}
+                            >
+                              Schedule
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          className="admin-btn auto-schedule-btn"
+                          onClick={() => setShowScheduleOptions(true)}
+                          style={{ display: 'flex', alignItems: 'center', gap: '8px', minHeight: '48px', padding: '0 1.25rem', background: 'var(--primary)', color: '#fff', border: 'none', borderRadius: '12px', cursor: 'pointer', fontWeight: '600', transition: 'all 0.25s' }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="16" y1="2" x2="16" y2="6"></line>
+                            <line x1="8" y1="2" x2="8" y2="6"></line>
+                            <line x1="3" y1="10" x2="21" y2="10"></line>
+                          </svg>
+                          Auto-schedule Group matches
+                        </button>
+                      )
                     )}
                     <button
                       className="admin-btn create-match-btn"
