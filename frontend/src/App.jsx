@@ -9,6 +9,7 @@ import Matches from './components/Matches';
 import AddResult from './components/AddResult';
 import Standings from './components/Standings';
 import Courts from './components/Courts';
+import GuestAccessModal from './components/GuestAccessModal';
 import { API_BASE_URL } from './config';
 import './App.css';
 
@@ -17,6 +18,7 @@ function App() {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isSidebarMobileOpen, setIsSidebarMobileOpen] = useState(false);
   const [user, setUser] = useState(null);
+  const [guestSession, setGuestSession] = useState(null);
 
   // Router specific state
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
@@ -148,7 +150,8 @@ function App() {
 
       setCurrentSearchQuery(window.location.search);
 
-      if (!user && targetPage !== 'login') {
+      const isGuestAllowedPage = targetPage === 'matches' || targetPage === 'add-result';
+      if (!user && targetPage !== 'login' && !isGuestAllowedPage) {
         setRedirectAfterLogin({ 
           page: targetPage, 
           params: { 
@@ -177,7 +180,8 @@ function App() {
       const params = new URLSearchParams(window.location.search);
       const path = window.location.pathname;
       
-      if (path !== '/' && !user) {
+      const isGuestAllowedPath = path === '/matches' || path === '/add-result';
+      if (path !== '/' && !user && !isGuestAllowedPath) {
         let targetPage = 'home';
         let targetId = null;
         let targetTournamentId = null;
@@ -277,7 +281,7 @@ function App() {
     }
   };
 
-  const showSidebar = currentPage !== 'login' && currentPage !== 'home';
+  const showSidebar = user != null && currentPage !== 'login' && currentPage !== 'home';
 
   return (
     <div className="app-layout-wrapper">
@@ -507,21 +511,49 @@ function App() {
             onNavigate={navigate}
           />
         ) : currentPage === 'matches' ? (
-          <Matches 
-            key={`${selectedTournamentId}-${currentSearchQuery}`}
-            tournamentId={selectedTournamentId}
-            user={user}
-            onNavigate={navigate}
-            searchQuery={currentSearchQuery}
-          />
+          <>
+            <Matches 
+              key={`${selectedTournamentId}-${currentSearchQuery}`}
+              tournamentId={selectedTournamentId}
+              user={user}
+              guestSession={guestSession}
+              onNavigate={navigate}
+              searchQuery={currentSearchQuery}
+            />
+            {!user && !guestSession && (
+              <GuestAccessModal 
+                isOpen={true} 
+                expectedDivisionId={new URLSearchParams(currentSearchQuery).get('divisionId')}
+                onVerify={(session) => {
+                  setGuestSession(session);
+                  setSelectedTournamentId(session.tournamentId);
+                }}
+                onCancel={() => navigate('login')}
+              />
+            )}
+          </>
         ) : currentPage === 'add-result' ? (
-          <AddResult 
-            key={`${selectedTournamentId}-${currentSearchQuery}`}
-            tournamentId={selectedTournamentId}
-            user={user}
-            onNavigate={navigate}
-            searchQuery={currentSearchQuery}
-          />
+          <>
+            <AddResult 
+              key={`${selectedTournamentId}-${currentSearchQuery}`}
+              tournamentId={selectedTournamentId}
+              user={user}
+              guestSession={guestSession}
+              onNavigate={navigate}
+              searchQuery={currentSearchQuery}
+            />
+            {!user && !guestSession && (
+              <GuestAccessModal 
+                isOpen={true} 
+                expectedDivisionId={new URLSearchParams(currentSearchQuery).get('divisionId')}
+                onVerify={(session) => {
+                  setGuestSession(session);
+                  setSelectedTournamentId(session.tournamentId);
+                }}
+                onCancel={() => navigate('login')}
+              />
+            )}
+          </>
         ) : currentPage === 'standings' ? (
           <Standings 
             key={`${selectedTournamentId}-${currentSearchQuery}`}

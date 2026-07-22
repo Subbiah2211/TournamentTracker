@@ -6,6 +6,7 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import java.time.OffsetDateTime;
 
 @Entity
 @Table(name = "\"Results\"")
@@ -55,11 +56,24 @@ public class Result {
     @Column(name = "set3_p2_at_11")
     private Integer set3P2At11;
 
+    // Set 4 — Singles Set (final scores only, no at-11 transition)
+    @Column(name = "set4_p1")
+    private Integer set4P1;
+
+    @Column(name = "set4_p2")
+    private Integer set4P2;
+
     @Column(name = "p1_status")
     private String p1Status;
 
     @Column(name = "p2_status")
     private String p2Status;
+
+    @Column(name = "last_edited_by_player_id")
+    private Long lastEditedByPlayerId;
+
+    @Column(name = "last_edited_at")
+    private OffsetDateTime lastEditedAt;
 
     public Result() {}
 
@@ -202,5 +216,37 @@ public class Result {
 
     public void setSet3P2At11(Integer set3P2At11) {
         this.set3P2At11 = set3P2At11;
+    }
+
+    public Integer getSet4P1() {
+        return set4P1;
+    }
+
+    public void setSet4P1(Integer set4P1) {
+        this.set4P1 = set4P1;
+    }
+
+    public Integer getSet4P2() {
+        return set4P2;
+    }
+
+    public void setSet4P2(Integer set4P2) {
+        this.set4P2 = set4P2;
+    }
+
+    public Long getLastEditedByPlayerId() {
+        return lastEditedByPlayerId;
+    }
+
+    public void setLastEditedByPlayerId(Long lastEditedByPlayerId) {
+        this.lastEditedByPlayerId = lastEditedByPlayerId;
+    }
+
+    public OffsetDateTime getLastEditedAt() {
+        return lastEditedAt;
+    }
+
+    public void setLastEditedAt(OffsetDateTime lastEditedAt) {
+        this.lastEditedAt = lastEditedAt;
     }
 }

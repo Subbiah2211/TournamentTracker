@@ -9,4 +9,5 @@ import java.util.List;
 @Repository
 public interface DivisionRepository extends JpaRepository<Division, Long> {
     List<Division> findByTournamentId(Long tournamentId);
+    Division findByAccessCodeIgnoreCase(String accessCode);
 }

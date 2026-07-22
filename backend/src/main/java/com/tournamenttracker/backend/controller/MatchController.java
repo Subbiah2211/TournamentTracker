@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.time.OffsetDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -256,7 +257,14 @@ public class MatchController {
         }
         Match match = matchOpt.get();
 
-        // 2. Validate and calculate winner statuses
+        // 2. Look up numSets for this division to decide win/draw threshold
+        int numSets = 3;
+        Optional<Division> divOpt = divisionRepository.findById(match.getDivisionId());
+        if (divOpt.isPresent() && divOpt.get().getNumSets() != null) {
+            numSets = divOpt.get().getNumSets();
+        }
+
+        // 3. Validate and calculate winner statuses
         int p1SetsWon = 0;
         int p2SetsWon = 0;
 
@@ -272,16 +280,26 @@ public class MatchController {
             if (result.getSet3P1() > result.getSet3P2()) p1SetsWon++;
             else if (result.getSet3P2() > result.getSet3P1()) p2SetsWon++;
         }
+        if (numSets >= 4 && result.getSet4P1() != null && result.getSet4P2() != null) {
+            if (result.getSet4P1() > result.getSet4P2()) p1SetsWon++;
+            else if (result.getSet4P2() > result.getSet4P1()) p2SetsWon++;
+        }
 
-        if (p1SetsWon >= 2) {
+        if (numSets == 4 && p1SetsWon == 2 && p2SetsWon == 2) {
+            // 4-set Draw
+            result.setP1Status("Draw");
+            result.setP2Status("Draw");
+        } else if (p1SetsWon > p2SetsWon && (numSets == 4 ? p1SetsWon >= 3 : p1SetsWon >= 2)) {
             result.setP1Status("Won");
             result.setP2Status("Lost");
-        } else if (p2SetsWon >= 2) {
+        } else if (p2SetsWon > p1SetsWon && (numSets == 4 ? p2SetsWon >= 3 : p2SetsWon >= 2)) {
             result.setP1Status("Lost");
             result.setP2Status("Won");
         } else {
             Map<String, String> err = new HashMap<>();
-            err.put("error", "Invalid scores. One participant must win at least 2 sets.");
+            err.put("error", numSets == 4
+                ? "Invalid scores. In a 4-set match one team must win 3 sets, or both teams win 2 sets (Draw)."
+                : "Invalid scores. One participant must win at least 2 sets.");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err);
         }
 
@@ -305,9 +323,11 @@ public class MatchController {
         int set2P2Val = result.getSet2P2() != null ? result.getSet2P2() : 0;
         int set3P1Val = result.getSet3P1() != null ? result.getSet3P1() : 0;
         int set3P2Val = result.getSet3P2() != null ? result.getSet3P2() : 0;
+        int set4P1Val = result.getSet4P1() != null ? result.getSet4P1() : 0;
+        int set4P2Val = result.getSet4P2() != null ? result.getSet4P2() : 0;
 
-        int newP1PointsFor = set1P1Val + set2P1Val + set3P1Val;
-        int newP1PointsAgainst = set1P2Val + set2P2Val + set3P2Val;
+        int newP1PointsFor = set1P1Val + set2P1Val + set3P1Val + set4P1Val;
+        int newP1PointsAgainst = set1P2Val + set2P2Val + set3P2Val + set4P2Val;
 
         int newP2PointsFor = newP1PointsAgainst;
         int newP2PointsAgainst = newP1PointsFor;
@@ -340,6 +360,7 @@ public class MatchController {
             } else if ("Lost".equals(existing.getP1Status())) {
                 p1.setLost(Math.max(0, (p1.getLost() != null ? p1.getLost() : 0) - 1));
             }
+            // Draw: neither won nor lost counters change
             p1.setPointsFor(Math.max(0, (p1.getPointsFor() != null ? p1.getPointsFor() : 0) - oldP1PointsFor));
             p1.setPointsAgaint(Math.max(0, (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0) - oldP1PointsAgainst));
             p1.setPointsDiff((p1.getPointsFor() != null ? p1.getPointsFor() : 0) - (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0));
@@ -351,6 +372,7 @@ public class MatchController {
             } else if ("Lost".equals(existing.getP2Status())) {
                 p2.setLost(Math.max(0, (p2.getLost() != null ? p2.getLost() : 0) - 1));
             }
+            // Draw: neither won nor lost counters change
             p2.setPointsFor(Math.max(0, (p2.getPointsFor() != null ? p2.getPointsFor() : 0) - oldP2PointsFor));
             p2.setPointsAgaint(Math.max(0, (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0) - oldP2PointsAgainst));
             p2.setPointsDiff((p2.getPointsFor() != null ? p2.getPointsFor() : 0) - (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0));
@@ -362,6 +384,8 @@ public class MatchController {
             existing.setSet2P2(result.getSet2P2());
             existing.setSet3P1(result.getSet3P1());
             existing.setSet3P2(result.getSet3P2());
+            existing.setSet4P1(result.getSet4P1());
+            existing.setSet4P2(result.getSet4P2());
             existing.setSet1P1At11(result.getSet1P1At11());
             existing.setSet1P2At11(result.getSet1P2At11());
             existing.setSet2P1At11(result.getSet2P1At11());
@@ -370,9 +394,12 @@ public class MatchController {
             existing.setSet3P2At11(result.getSet3P2At11());
             existing.setP1Status(result.getP1Status());
             existing.setP2Status(result.getP2Status());
+            existing.setLastEditedByPlayerId(result.getLastEditedByPlayerId());
+            existing.setLastEditedAt(OffsetDateTime.now());
 
             savedResult = resultRepository.save(existing);
         } else {
+            result.setLastEditedAt(OffsetDateTime.now());
             savedResult = resultRepository.save(result);
         }
 
@@ -383,6 +410,7 @@ public class MatchController {
         } else if ("Lost".equals(result.getP1Status())) {
             p1.setLost((p1.getLost() != null ? p1.getLost() : 0) + 1);
         }
+        // Draw: neither won nor lost
         p1.setPointsFor((p1.getPointsFor() != null ? p1.getPointsFor() : 0) + newP1PointsFor);
         p1.setPointsAgaint((p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0) + newP1PointsAgainst);
         p1.setPointsDiff((p1.getPointsFor() != null ? p1.getPointsFor() : 0) - (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0));
@@ -394,6 +422,7 @@ public class MatchController {
         } else if ("Lost".equals(result.getP2Status())) {
             p2.setLost((p2.getLost() != null ? p2.getLost() : 0) + 1);
         }
+        // Draw: neither won nor lost
         p2.setPointsFor((p2.getPointsFor() != null ? p2.getPointsFor() : 0) + newP2PointsFor);
         p2.setPointsAgaint((p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0) + newP2PointsAgainst);
         p2.setPointsDiff((p2.getPointsFor() != null ? p2.getPointsFor() : 0) - (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0));

@@ -22,6 +22,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
   const [maxSkillLevel, setMaxSkillLevel] = useState('');
   const [maxTeams, setMaxTeams] = useState('');
   const [groupCount, setGroupCount] = useState(1);
+  const [numSets, setNumSets] = useState(3);
   const [status, setStatus] = useState('active');
 
   const [formLoading, setFormLoading] = useState(false);
@@ -108,6 +109,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
     setMaxSkillLevel(selectedDivision.maxSkillLevel || '');
     setMaxTeams(selectedDivision.maxTeams || '');
     setGroupCount(selectedDivision.groupCount || 1);
+    setNumSets(selectedDivision.numSets || 3);
     setStatus(selectedDivision.status || 'active');
     
     setValidationErrors({});
@@ -128,6 +130,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
     setMaxSkillLevel('');
     setMaxTeams('');
     setGroupCount(1);
+    setNumSets(3);
     setStatus('active');
     
     setValidationErrors({});
@@ -180,6 +183,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
       maxSkillLevel,
       maxTeams: maxTeams ? parseInt(maxTeams) : null,
       groupCount: groupCount ? parseInt(groupCount) : 1,
+      numSets: numSets ? parseInt(numSets) : 3,
       status
     };
 
@@ -234,6 +238,30 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
       setFormLoading(false);
     }
   };
+
+  const handleRegenerateCode = async () => {
+    if (!selectedDivision || !window.confirm("Are you sure you want to regenerate the guest access code for this division? Existing guests may need to enter the new code.")) return;
+    try {
+      setLoading(true);
+      const resp = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivision.id}/regenerate-code`, {
+        method: 'POST'
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setSelectedDivision({ ...selectedDivision, accessCode: data.accessCode });
+        setDivisions(divisions.map(d => d.id === selectedDivision.id ? { ...d, accessCode: data.accessCode } : d));
+        alert('Access code regenerated successfully.');
+      } else {
+        throw new Error('Failed to regenerate code');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Error regenerating access code');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="status-loading">
@@ -480,6 +508,32 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
                   <span className="info-value" style={{ textTransform: 'capitalize' }}>{selectedDivision.status || 'active'}</span>
                 </div>
               </div>
+
+              {isAdmin && (
+                <div className="info-item" style={{ gridColumn: '1 / -1', background: 'rgba(var(--primary-rgb), 0.05)', border: '1px solid rgba(var(--primary-rgb), 0.2)', borderRadius: '12px', padding: '1rem' }}>
+                  <div className="info-icon-wrapper" style={{ color: 'var(--primary)' }}>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+                    </svg>
+                  </div>
+                  <div className="info-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexDirection: 'row' }}>
+                    <div>
+                      <span className="info-label" style={{ color: 'var(--primary)' }}>Guest Access Code</span>
+                      <span className="info-value" style={{ fontFamily: 'monospace', fontSize: '1.25rem', letterSpacing: '4px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                        {selectedDivision.accessCode || 'Not Generated'}
+                      </span>
+                    </div>
+                    <button className="admin-btn edit-btn" onClick={handleRegenerateCode} style={{ padding: '8px 16px', fontSize: '0.85rem', margin: 0, minHeight: 'auto' }}>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="1 4 1 10 7 10"></polyline>
+                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                      </svg>
+                      Regenerate
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -718,6 +772,20 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
                   <option value="active">Active</option>
                   <option value="upcoming">Upcoming</option>
                   <option value="completed">Completed</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="divNumSets" className="form-label">Number of Sets</label>
+                <select
+                  id="divNumSets"
+                  className="form-input form-select"
+                  value={numSets}
+                  onChange={(e) => setNumSets(parseInt(e.target.value))}
+                  disabled={formLoading}
+                >
+                  <option value={3}>3 Sets (Best of 3)</option>
+                  <option value={4}>4 Sets (with Singles Set)</option>
                 </select>
               </div>
 

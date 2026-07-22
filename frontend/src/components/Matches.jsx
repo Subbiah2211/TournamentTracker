@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 
-export default function Matches({ tournamentId, user, onNavigate, searchQuery }) {
+export default function Matches({ tournamentId, user, guestSession, onNavigate, searchQuery }) {
   const [divisions, setDivisions] = useState([]);
   const [selectedDivisionId, setSelectedDivisionId] = useState(null);
   const [matches, setMatches] = useState([]);
@@ -44,7 +44,7 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
   const [completedExpanded, setCompletedExpanded] = useState(false);
 
   const isAdmin = user && user.role === 'admin';
-  const canEditResults = user && (user.role === 'admin' || user.role === 'editor');
+  const canEditResults = (user && (user.role === 'admin' || user.role === 'editor')) || !!guestSession;
 
   // 1. Fetch Divisions for the tournament
   useEffect(() => {
@@ -60,7 +60,9 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
         const params = new URLSearchParams(searchQuery || '');
         const divId = params.get('divisionId');
         
-        if (divId && data.some(d => d.id === parseInt(divId))) {
+        if (guestSession) {
+          setSelectedDivisionId(guestSession.divisionId);
+        } else if (divId && data.some(d => d.id === parseInt(divId))) {
           setSelectedDivisionId(parseInt(divId));
         } else if (data.length > 0) {
           setSelectedDivisionId(data[0].id);
@@ -214,6 +216,19 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
   };
 
   const todayStr = getLocalTodayString();
+
+  const getCourtName = (courtId) => {
+    if (!courtId) return '';
+    const court = courts.find((c) => c.id === courtId || c.id === parseInt(courtId));
+    return court ? court.courtName : '';
+  };
+
+  const getMatchBadgeText = (m) => {
+    const roundText = m.round ? `Round ${m.round}` : '';
+    const courtText = getCourtName(m.courtId);
+    if (roundText && courtText) return `${roundText} • ${courtText}`;
+    return roundText || courtText;
+  };
 
   // Extract distinct rounds from the full matches list
   const availableRounds = [...new Set(matches.map(m => m.round).filter(Boolean))].sort((a, b) => a - b);
@@ -446,25 +461,31 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                 <div style={{ display: 'flex', gap: '1rem', flex: 1, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   <div className="form-group" style={{ margin: 0, minWidth: '280px', flex: '1' }}>
                     <label htmlFor="divSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Division</label>
-                    <select
-                      id="divSelect"
-                      className="form-input form-select"
-                      value={selectedDivisionId || ''}
-                      onChange={(e) => {
-                        setSelectedDivisionId(parseInt(e.target.value));
-                        setSelectedGroupId(null);
-                        setSelectedRoundFilter('all');
-                        setSelectedTeamFilter('all');
-                        setUpcomingExpanded(false);
-                        setCompletedExpanded(false);
-                        setShowScheduleOptions(false);
-                      }}
-                      style={{ minHeight: '48px', cursor: 'pointer' }}
-                    >
-                      {divisions.map((div) => (
-                        <option key={div.id} value={div.id}>{div.name}</option>
-                      ))}
-                    </select>
+                    {guestSession ? (
+                      <div className="form-input form-select" style={{ minHeight: '48px', display: 'flex', alignItems: 'center', background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--text-secondary)' }}>
+                        {guestSession.divisionName}
+                      </div>
+                    ) : (
+                      <select
+                        id="divSelect"
+                        className="form-input form-select"
+                        value={selectedDivisionId || ''}
+                        onChange={(e) => {
+                          setSelectedDivisionId(parseInt(e.target.value));
+                          setSelectedGroupId(null);
+                          setSelectedRoundFilter('all');
+                          setSelectedTeamFilter('all');
+                          setUpcomingExpanded(false);
+                          setCompletedExpanded(false);
+                          setShowScheduleOptions(false);
+                        }}
+                        style={{ minHeight: '48px', cursor: 'pointer' }}
+                      >
+                        {divisions.map((div) => (
+                          <option key={div.id} value={div.id}>{div.name}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
 
                   {groupsForSelectedDivision.length > 0 && (
@@ -672,9 +693,9 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                               ) : (
                                 <span>{m.participant1Name} vs {m.participant2Name}</span>
                               )}
-                              {m.round && (
+                              {getMatchBadgeText(m) && (
                                 <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
-                                  Round {m.round}
+                                  {getMatchBadgeText(m)}
                                 </span>
                               )}
                             </div>
@@ -685,7 +706,7 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                             )}
                             {(m.p1Status || m.p2Status) && (
                               <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--accent-pickleball)' }}>
-                                {m.p1Status === 'Won' ? `${m.participant1Name} Won` : m.p2Status === 'Won' ? `${m.participant2Name} Won` : ''}
+                                {m.p1Status === 'Draw' ? 'Match Drawn' : m.p1Status === 'Won' ? `${m.participant1Name} Won` : m.p2Status === 'Won' ? `${m.participant2Name} Won` : ''}
                               </div>
                             )}
                           </div>
@@ -734,9 +755,9 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                               ) : (
                                 <span>{m.participant1Name} vs {m.participant2Name}</span>
                               )}
-                              {m.round && (
+                              {getMatchBadgeText(m) && (
                                 <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
-                                  Round {m.round}
+                                  {getMatchBadgeText(m)}
                                 </span>
                               )}
                             </div>
@@ -747,7 +768,7 @@ export default function Matches({ tournamentId, user, onNavigate, searchQuery })
                             )}
                             {(m.p1Status || m.p2Status) && (
                               <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--accent-pickleball)' }}>
-                                {m.p1Status === 'Won' ? `${m.participant1Name} Won` : m.p2Status === 'Won' ? `${m.participant2Name} Won` : ''}
+                                {m.p1Status === 'Draw' ? 'Match Drawn' : m.p1Status === 'Won' ? `${m.participant1Name} Won` : m.p2Status === 'Won' ? `${m.participant2Name} Won` : ''}
                               </div>
                             )}
                           </div>

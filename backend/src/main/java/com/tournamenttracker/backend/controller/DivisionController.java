@@ -8,10 +8,23 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import jakarta.servlet.http.HttpServletRequest;
+
+import com.tournamenttracker.backend.model.Participant;
+import com.tournamenttracker.backend.model.Player;
+import com.tournamenttracker.backend.model.TeamPlayer;
+import com.tournamenttracker.backend.repository.ParticipantRepository;
+import com.tournamenttracker.backend.repository.PlayerRepository;
+import com.tournamenttracker.backend.repository.TeamPlayerRepository;
 
 @RestController
 @RequestMapping("/api")
+@CrossOrigin(origins = "*")
 public class DivisionController {
 
     @Autowired
@@ -19,6 +32,41 @@ public class DivisionController {
 
     @Autowired
     private GroupRepository groupRepository;
+
+    @Autowired
+    private ParticipantRepository participantRepository;
+
+    @Autowired
+    private PlayerRepository playerRepository;
+
+    @Autowired
+    private TeamPlayerRepository teamPlayerRepository;
+
+    private final Map<String, long[]> rateLimits = new ConcurrentHashMap<>();
+
+    private boolean isRateLimited(HttpServletRequest request) {
+        String ip = request.getRemoteAddr();
+        long now = System.currentTimeMillis();
+        long[] limit = rateLimits.computeIfAbsent(ip, k -> new long[]{0, now});
+        if (now - limit[1] > 60000) {
+            limit[0] = 1;
+            limit[1] = now;
+            return false;
+        }
+        if (limit[0] >= 10) return true;
+        limit[0]++;
+        return false;
+    }
+
+    private String generateAccessCode() {
+        String chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        StringBuilder sb = new StringBuilder(5);
+        java.util.Random rnd = new java.util.Random();
+        for (int i = 0; i < 5; i++) {
+            sb.append(chars.charAt(rnd.nextInt(chars.length())));
+        }
+        return sb.toString();
+    }
 
     // Alphabet labels for group naming: A, B, C, ...
     private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
@@ -38,6 +86,66 @@ public class DivisionController {
         return divisionRepository.findById(id)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/divisions/verify-code")
+    public ResponseEntity<?> verifyAccessCode(@RequestBody Map<String, String> payload, HttpServletRequest request) {
+        if (isRateLimited(request)) {
+            return ResponseEntity.status(429).body(Map.of("error", "Too Many Requests"));
+        }
+        String code = payload.get("code");
+        if (code == null || code.trim().isEmpty()) {
+            return ResponseEntity.badRequest().build();
+        }
+        Division division = divisionRepository.findByAccessCodeIgnoreCase(code.trim());
+        if (division == null) {
+            return ResponseEntity.notFound().build();
+        }
+        Map<String, Object> response = new HashMap<>();
+        response.put("divisionId", division.getId());
+        response.put("divisionName", division.getName());
+        response.put("tournamentId", division.getTournamentId());
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/divisions/{id}/regenerate-code")
+    public ResponseEntity<Division> regenerateCode(@PathVariable Long id) {
+        return divisionRepository.findById(id).map(division -> {
+            division.setAccessCode(generateAccessCode());
+            return ResponseEntity.ok(divisionRepository.save(division));
+        }).orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/divisions/{id}/players")
+    public ResponseEntity<List<Map<String, Object>>> getDivisionPlayers(@PathVariable Long id) {
+        List<Participant> participants = participantRepository.findByDivisionId(id.intValue());
+        List<Map<String, Object>> players = new ArrayList<>();
+        
+        for (Participant p : participants) {
+            if ("Singles".equalsIgnoreCase(p.getType())) {
+                playerRepository.findById(p.getPlayerTeamId()).ifPresent(player -> {
+                    Map<String, Object> map = new HashMap<>();
+                    map.put("id", player.getId());
+                    map.put("firstName", player.getFirstName());
+                    map.put("lastName", player.getLastName());
+                    map.put("participantName", p.getPlayerTeamName());
+                    players.add(map);
+                });
+            } else {
+                List<TeamPlayer> tps = teamPlayerRepository.findByTeamId(p.getPlayerTeamId());
+                for (TeamPlayer tp : tps) {
+                    playerRepository.findById(tp.getPlayerId()).ifPresent(player -> {
+                        Map<String, Object> map = new HashMap<>();
+                        map.put("id", player.getId());
+                        map.put("firstName", player.getFirstName());
+                        map.put("lastName", player.getLastName());
+                        map.put("participantName", p.getPlayerTeamName());
+                        players.add(map);
+                    });
+                }
+            }
+        }
+        return ResponseEntity.ok(players);
     }
 
     // GET all groups for a division
@@ -81,6 +189,8 @@ public class DivisionController {
         int groupCount = (division.getGroupCount() != null && division.getGroupCount() >= 1)
                 ? division.getGroupCount() : 1;
         division.setGroupCount(groupCount);
+
+        division.setAccessCode(generateAccessCode());
 
         Division saved = divisionRepository.save(division);
 

@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 
-export default function AddResult({ tournamentId, user, onNavigate, searchQuery }) {
+export default function AddResult({ tournamentId, user, guestSession, onNavigate, searchQuery }) {
   const [divisions, setDivisions] = useState([]);
   const [selectedDivisionId, setSelectedDivisionId] = useState('');
   const [matches, setMatches] = useState([]);
@@ -24,6 +24,10 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
   const [set3P1, setSet3P1] = useState('');
   const [set3P2, setSet3P2] = useState('');
 
+  // Set 4 scores (Singles Set — only for 4-set divisions)
+  const [set4P1, setSet4P1] = useState('');
+  const [set4P2, setSet4P2] = useState('');
+
   // Transition scores (at 11) states for Team matches
   const [set1P1At11, setSet1P1At11] = useState('');
   const [set1P2At11, setSet1P2At11] = useState('');
@@ -41,6 +45,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
   const [error, setError] = useState(null);
   const [validationErrors, setValidationErrors] = useState({});
   const [formError, setFormError] = useState('');
+  const [isSuccess, setIsSuccess] = useState(false);
 
   const [participants, setParticipants] = useState([]);
 
@@ -64,7 +69,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     loadParticipants();
   }, [selectedDivisionId]);
 
-  const canEditResults = user && (user.role === 'admin' || user.role === 'editor');
+  const canEditResults = (user && (user.role === 'admin' || user.role === 'editor')) || !!guestSession;
 
   // Parse query parameters
   const params = new URLSearchParams(searchQuery);
@@ -127,6 +132,8 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
               setSelectedDivisionId(divData[0].id);
             }
           }
+        } else if (guestSession) {
+          setSelectedDivisionId(guestSession.divisionId);
         } else {
           if (divData.length > 0) {
             setSelectedDivisionId(divData[0].id);
@@ -212,6 +219,8 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           setSet2P2(resData.set2P2 !== null ? String(resData.set2P2) : '');
           setSet3P1(resData.set3P1 !== null ? String(resData.set3P1) : '');
           setSet3P2(resData.set3P2 !== null ? String(resData.set3P2) : '');
+          setSet4P1(resData.set4P1 !== null && resData.set4P1 !== undefined ? String(resData.set4P1) : '');
+          setSet4P2(resData.set4P2 !== null && resData.set4P2 !== undefined ? String(resData.set4P2) : '');
           setSet1P1At11(resData.set1P1At11 !== null ? String(resData.set1P1At11) : '');
           setSet1P2At11(resData.set1P2At11 !== null ? String(resData.set1P2At11) : '');
           setSet2P1At11(resData.set2P1At11 !== null ? String(resData.set2P1At11) : '');
@@ -275,6 +284,8 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     setSet2P2('');
     setSet3P1('');
     setSet3P2('');
+    setSet4P1('');
+    setSet4P2('');
     setSet1P1At11('');
     setSet1P2At11('');
     setSet2P1At11('');
@@ -428,12 +439,15 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           set2P2: parseInt(set2P2),
           set3P1: set3P1 !== '' ? parseInt(set3P1) : null,
           set3P2: set3P2 !== '' ? parseInt(set3P2) : null,
+          set4P1: set4P1 !== '' ? parseInt(set4P1) : null,
+          set4P2: set4P2 !== '' ? parseInt(set4P2) : null,
           set1P1At11: set1P1At11 !== '' ? parseInt(set1P1At11) : null,
           set1P2At11: set1P2At11 !== '' ? parseInt(set1P2At11) : null,
           set2P1At11: set2P1At11 !== '' ? parseInt(set2P1At11) : null,
           set2P2At11: set2P2At11 !== '' ? parseInt(set2P2At11) : null,
           set3P1At11: set3P1At11 !== '' ? parseInt(set3P1At11) : null,
-          set3P2At11: set3P2At11 !== '' ? parseInt(set3P2At11) : null
+          set3P2At11: set3P2At11 !== '' ? parseInt(set3P2At11) : null,
+          lastEditedByPlayerId: guestSession ? guestSession.playerId : null
         };
 
         const resultResponse = await fetch(`${API_BASE_URL}/api/results`, {
@@ -448,8 +462,7 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
         }
       }
 
-      alert('Result successfully saved!');
-      onNavigate('matches', { tournamentId, divisionId: selectedDivisionId });
+      setIsSuccess(true);
     } catch (err) {
       console.error(err);
       setFormError(err.message || 'Failed to save changes. Please check if the backend is running.');
@@ -490,6 +503,31 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     );
   }
 
+  if (isSuccess) {
+    return (
+      <div className="matches-page-container" style={{ maxWidth: '800px', textAlign: 'center', padding: '3rem 1rem' }}>
+        <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '24px', padding: '3rem 2rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1.5rem' }}>
+          <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'var(--primary)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <h2 style={{ fontSize: '2rem', color: 'var(--text-primary)', fontWeight: '700' }}>Result Saved!</h2>
+          <p style={{ color: 'var(--text-secondary)', fontSize: '1.1rem', maxWidth: '400px' }}>
+            The match details and scores have been successfully updated.
+          </p>
+          <button 
+            className="submit-btn" 
+            onClick={() => onNavigate('matches', { tournamentId, divisionId: selectedDivisionId })}
+            style={{ marginTop: '1rem', minWidth: '200px' }}
+          >
+            Back to Matches
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   const renderTeamSetCard = (setNum, setP1At11, setSetP1At11, setP2At11, setSetP2At11, setP1, setSetP1, setP2, setSetP2, p1Players, p2Players) => {
     // Determine player rotation designations based on setNum
     let firstHalfPairs1 = "";
@@ -500,10 +538,10 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     if (p1Players.length >= 4 && p2Players.length >= 4) {
       const getPlayerName = (list, index) => list[index] ? `${list[index].firstName} ${list[index].lastName}` : `Player ${index + 1}`;
       if (setNum === 1) {
-        firstHalfPairs1 = `${getPlayerName(p1Players, 1)} / ${getPlayerName(p1Players, 2)}`;
-        firstHalfPairs2 = `${getPlayerName(p2Players, 1)} / ${getPlayerName(p2Players, 2)}`;
-        secondHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 3)}`;
-        secondHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 3)}`;
+        firstHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 3)}`;
+        firstHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 3)}`;
+        secondHalfPairs1 = `${getPlayerName(p1Players, 1)} / ${getPlayerName(p1Players, 2)}`;
+        secondHalfPairs2 = `${getPlayerName(p2Players, 1)} / ${getPlayerName(p2Players, 2)}`;
       } else if (setNum === 2) {
         firstHalfPairs1 = `${getPlayerName(p1Players, 1)} / ${getPlayerName(p1Players, 3)}`;
         firstHalfPairs2 = `${getPlayerName(p2Players, 1)} / ${getPlayerName(p2Players, 3)}`;
@@ -518,8 +556,8 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
     } else {
       // Fallback description if players list not loaded
       if (setNum === 1) {
-        firstHalfPairs1 = firstHalfPairs2 = "Player 2 & Player 3";
-        secondHalfPairs1 = secondHalfPairs2 = "Player 1 & Player 4";
+        firstHalfPairs1 = firstHalfPairs2 = "Player 1 & Player 4";
+        secondHalfPairs1 = secondHalfPairs2 = "Player 2 & Player 3";
       } else if (setNum === 2) {
         firstHalfPairs1 = firstHalfPairs2 = "Player 2 & Player 4";
         secondHalfPairs1 = secondHalfPairs2 = "Player 1 & Player 3";
@@ -668,21 +706,27 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
           <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
             <div className="form-group flex-1" style={{ minWidth: '240px' }}>
               <label htmlFor="divSelect" className="form-label">Select Division *</label>
-              <select
-                id="divSelect"
-                className={`form-input form-select ${validationErrors.division ? 'error' : ''}`}
-                value={selectedDivisionId}
-                onChange={(e) => handleDivisionChange(e.target.value)}
-                disabled={formLoading}
-                required
-              >
-                <option value="" disabled>Choose division...</option>
-                {divisions.map((div) => (
-                  <option key={div.id} value={div.id}>
-                    {div.name}
-                  </option>
-                ))}
-              </select>
+              {guestSession ? (
+                <div className="form-input form-select" style={{ background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', minHeight: '48px' }}>
+                  {guestSession.divisionName}
+                </div>
+              ) : (
+                <select
+                  id="divSelect"
+                  className={`form-input form-select ${validationErrors.division ? 'error' : ''}`}
+                  value={selectedDivisionId}
+                  onChange={(e) => handleDivisionChange(e.target.value)}
+                  disabled={formLoading}
+                  required
+                >
+                  <option value="" disabled>Choose division...</option>
+                  {divisions.map((div) => (
+                    <option key={div.id} value={div.id}>
+                      {div.name}
+                    </option>
+                  ))}
+                </select>
+              )}
               {validationErrors.division && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.division}</span>}
             </div>
 
@@ -900,6 +944,53 @@ export default function AddResult({ tournamentId, user, onNavigate, searchQuery 
                   {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
                   {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
                   {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
+                </div>
+              )}
+
+              {/* ── Set 4 ── Singles Set (only for 4-set divisions) */}
+              {currentDivision?.numSets === 4 && matchDetails && (
+                <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                    <div style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>4</div>
+                    <div>
+                      <div style={{ fontWeight: '700', fontSize: '1rem', color: 'var(--text-primary)' }}>Set 4 — Singles Set</div>
+                      <div style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', marginTop: '2px' }}>Singles Set. Both teams will swap players at 8. Winning score: 32</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center', gap: '1rem' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--text-primary)', textAlign: 'center' }}>{matchDetails.participant1Name}</div>
+                      <input
+                        id="set4P1Input"
+                        type="number"
+                        min="0"
+                        className="form-input"
+                        value={set4P1}
+                        onChange={(e) => setSet4P1(e.target.value)}
+                        placeholder="Score"
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+                    <div style={{ fontWeight: '700', color: 'var(--text-secondary)', fontSize: '1.2rem' }}>vs</div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                      <div style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--text-primary)', textAlign: 'center' }}>{matchDetails.participant2Name}</div>
+                      <input
+                        id="set4P2Input"
+                        type="number"
+                        min="0"
+                        className="form-input"
+                        value={set4P2}
+                        onChange={(e) => setSet4P2(e.target.value)}
+                        placeholder="Score"
+                        style={{ textAlign: 'center', minHeight: '44px' }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
+                    {currentDivision?.numSets === 4 && (
+                      <span>2-2 tie = <strong>Draw</strong> · 3-1 or 4-0 = outright win</span>
+                    )}
+                  </div>
                 </div>
               )}
 

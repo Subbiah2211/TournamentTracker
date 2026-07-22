@@ -53,8 +53,14 @@ public class Division {
     @Column(name = "group_count")
     private Integer groupCount;
 
+    @Column(name = "num_sets", nullable = false)
+    private Integer numSets = 3;
+
     @Column(name = "status")
     private String status;
+
+    @Column(name = "access_code")
+    private String accessCode;
 
     public Division() {}
 
@@ -179,11 +185,27 @@ public class Division {
         this.groupCount = groupCount;
     }
 
+    public Integer getNumSets() {
+        return numSets;
+    }
+
+    public void setNumSets(Integer numSets) {
+        this.numSets = (numSets != null && numSets >= 3) ? numSets : 3;
+    }
+
     public String getStatus() {
         return status;
     }
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getAccessCode() {
+        return accessCode;
+    }
+
+    public void setAccessCode(String accessCode) {
+        this.accessCode = accessCode;
     }
 }
