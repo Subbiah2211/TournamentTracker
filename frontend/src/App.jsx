@@ -512,15 +512,7 @@ function App() {
           />
         ) : currentPage === 'matches' ? (
           <>
-            <Matches 
-              key={`${selectedTournamentId}-${currentSearchQuery}`}
-              tournamentId={selectedTournamentId}
-              user={user}
-              guestSession={guestSession}
-              onNavigate={navigate}
-              searchQuery={currentSearchQuery}
-            />
-            {!user && !guestSession && (
+            {(!user && !guestSession) ? (
               <GuestAccessModal 
                 isOpen={true} 
                 expectedDivisionId={new URLSearchParams(currentSearchQuery).get('divisionId')}
@@ -530,19 +522,20 @@ function App() {
                 }}
                 onCancel={() => navigate('login')}
               />
+            ) : (
+              <Matches 
+                key={`${selectedTournamentId}-${currentSearchQuery}-${guestSession ? guestSession.divisionId : 'admin'}`}
+                tournamentId={selectedTournamentId}
+                user={user}
+                guestSession={guestSession}
+                onNavigate={navigate}
+                searchQuery={currentSearchQuery}
+              />
             )}
           </>
         ) : currentPage === 'add-result' ? (
           <>
-            <AddResult 
-              key={`${selectedTournamentId}-${currentSearchQuery}`}
-              tournamentId={selectedTournamentId}
-              user={user}
-              guestSession={guestSession}
-              onNavigate={navigate}
-              searchQuery={currentSearchQuery}
-            />
-            {!user && !guestSession && (
+            {(!user && !guestSession) ? (
               <GuestAccessModal 
                 isOpen={true} 
                 expectedDivisionId={new URLSearchParams(currentSearchQuery).get('divisionId')}
@@ -551,6 +544,15 @@ function App() {
                   setSelectedTournamentId(session.tournamentId);
                 }}
                 onCancel={() => navigate('login')}
+              />
+            ) : (
+              <AddResult 
+                key={`${selectedTournamentId}-${currentSearchQuery}-${guestSession ? guestSession.divisionId : 'admin'}`}
+                tournamentId={selectedTournamentId}
+                user={user}
+                guestSession={guestSession}
+                onNavigate={navigate}
+                searchQuery={currentSearchQuery}
               />
             )}
           </>
