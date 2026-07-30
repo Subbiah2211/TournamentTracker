@@ -46,6 +46,9 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   const [validationErrors, setValidationErrors] = useState({});
   const [formError, setFormError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [hasExistingResult, setHasExistingResult] = useState(false);
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const [participants, setParticipants] = useState([]);
 
@@ -227,6 +230,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           setSet2P2At11(resData.set2P2At11 !== null ? String(resData.set2P2At11) : '');
           setSet3P1At11(resData.set3P1At11 !== null ? String(resData.set3P1At11) : '');
           setSet3P2At11(resData.set3P2At11 !== null ? String(resData.set3P2At11) : '');
+          setHasExistingResult(true);
         } else {
           clearScores();
         }
@@ -294,6 +298,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     setSet3P2At11('');
     setTeamPlayers1([]);
     setTeamPlayers2([]);
+    setHasExistingResult(false);
   };
 
   const handleDivisionChange = (divId) => {
@@ -468,6 +473,29 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
       setFormError(err.message || 'Failed to save changes. Please check if the backend is running.');
     } finally {
       setFormLoading(false);
+    }
+  };
+
+  const handleResetScores = async () => {
+    setResetLoading(true);
+    try {
+      const resp = await fetch(`${API_BASE_URL}/api/results/match/${selectedMatchId}`, {
+        method: 'DELETE'
+      });
+      if (!resp.ok) {
+        const errData = await resp.json();
+        setFormError(errData.error || 'Failed to reset scores. Please try again.');
+      } else {
+        clearScores();
+        setFormError('');
+        setValidationErrors({});
+      }
+    } catch (err) {
+      console.error(err);
+      setFormError('Network error. Failed to reset scores.');
+    } finally {
+      setResetLoading(false);
+      setShowResetModal(false);
     }
   };
 
@@ -678,6 +706,68 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
 
   return (
     <div className="matches-page-container" style={{ maxWidth: '800px' }}>
+
+      {/* ── Reset Scores Confirmation Modal ── */}
+      {showResetModal && (
+        <div
+          style={{
+            position: 'fixed', inset: 0, zIndex: 1000,
+            background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(4px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem'
+          }}
+          onClick={(e) => { if (e.target === e.currentTarget) setShowResetModal(false); }}
+        >
+          <div style={{
+            background: 'var(--surface)', border: '1px solid rgba(239,68,68,0.35)',
+            borderRadius: '20px', padding: '2rem', maxWidth: '440px', width: '100%',
+            display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 24px 60px rgba(0,0,0,0.5)'
+          }}>
+            {/* Warning icon */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div style={{
+                width: '44px', height: '44px', borderRadius: '50%', flexShrink: 0,
+                background: 'rgba(239,68,68,0.15)', border: '1px solid rgba(239,68,68,0.3)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center'
+              }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--color-error)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+              </div>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+                Reset Match Scores?
+              </h3>
+            </div>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '0.95rem', lineHeight: '1.55', margin: 0 }}>
+              This will permanently remove the recorded scores for this match and revert the standings for both participants. This action cannot be undone.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+              <button
+                onClick={() => setShowResetModal(false)}
+                disabled={resetLoading}
+                className="form-cancel-btn"
+                style={{ flex: 1 }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleResetScores}
+                disabled={resetLoading}
+                style={{
+                  flex: 1, padding: '0.7rem 1rem', borderRadius: '10px', fontWeight: '700',
+                  fontSize: '0.9rem', cursor: resetLoading ? 'not-allowed' : 'pointer',
+                  background: 'var(--color-error)', color: '#fff', border: 'none',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  opacity: resetLoading ? 0.7 : 1
+                }}
+              >
+                {resetLoading ? <div className="spinner" aria-label="Resetting" style={{ width: '16px', height: '16px', borderWidth: '2px' }} /> : 'Yes, Reset Scores'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <button className="back-btn" onClick={() => onNavigate('matches', { tournamentId, divisionId: selectedDivisionId })} style={{ marginBottom: '1.5rem' }}>
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
           <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -754,74 +844,137 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           {selectedMatchId && matchDetails && (
              <div style={{ animation: 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1)', display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
               <div>
-                <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Match Details</h3>
+                <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>
+                  Match Details
+                  {guestSession && (
+                    <span style={{ fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', marginLeft: '0.75rem', background: 'rgba(255,255,255,0.07)', padding: '2px 8px', borderRadius: '20px', verticalAlign: 'middle' }}>View Only</span>
+                  )}
+                </h3>
                 <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
                   <div className="form-group flex-1" style={{ minWidth: '200px' }}>
                     <label htmlFor="mDate" className="form-label">Match Date</label>
-                    <input
-                      id="mDate"
-                      type="date"
-                      className="form-input"
-                      value={matchDate}
-                      onChange={(e) => setMatchDate(e.target.value)}
-                      disabled={formLoading}
-                    />
+                    {guestSession ? (
+                      <div className="form-input" style={{ minHeight: '48px', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'default', userSelect: 'none' }}>
+                        {matchDate || <span style={{ opacity: 0.4 }}>Not set</span>}
+                      </div>
+                    ) : (
+                      <input
+                        id="mDate"
+                        type="date"
+                        className="form-input"
+                        value={matchDate}
+                        onChange={(e) => setMatchDate(e.target.value)}
+                        disabled={formLoading}
+                      />
+                    )}
                   </div>
                   <div className="form-group flex-1" style={{ minWidth: '200px' }}>
                     <label htmlFor="mRound" className="form-label">Round</label>
-                    <input
-                      id="mRound"
-                      type="number"
-                      min="1"
-                      placeholder="e.g. 1"
-                      className={`form-input ${validationErrors.round ? 'error' : ''}`}
-                      value={round}
-                      onChange={(e) => setRound(e.target.value)}
-                      disabled={formLoading}
-                    />
-                    {validationErrors.round && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.round}</span>}
+                    {guestSession ? (
+                      <div className="form-input" style={{ minHeight: '48px', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'default', userSelect: 'none' }}>
+                        {round ? `Round ${round}` : <span style={{ opacity: 0.4 }}>Not set</span>}
+                      </div>
+                    ) : (
+                      <>
+                        <input
+                          id="mRound"
+                          type="number"
+                          min="1"
+                          placeholder="e.g. 1"
+                          className={`form-input ${validationErrors.round ? 'error' : ''}`}
+                          value={round}
+                          onChange={(e) => setRound(e.target.value)}
+                          disabled={formLoading}
+                        />
+                        {validationErrors.round && <span className="error-text" style={{ fontSize: '0.8rem', color: 'var(--color-error)', marginTop: '4px' }}>{validationErrors.round}</span>}
+                      </>
+                    )}
                   </div>
                   <div className="form-group flex-1" style={{ minWidth: '200px' }}>
-                    <label htmlFor="mCourt" className="form-label">Court (Optional)</label>
-                    <select
-                      id="mCourt"
-                      className="form-input form-select"
-                      value={courtId}
-                      onChange={(e) => setCourtId(e.target.value)}
-                      disabled={formLoading}
-                    >
-                      <option value="">Select court...</option>
-                      {courts.map((c) => (
-                        <option key={c.id} value={c.id}>{c.courtName}</option>
-                      ))}
-                    </select>
+                    <label htmlFor="mCourt" className="form-label">Court</label>
+                    {guestSession ? (
+                      <div className="form-input" style={{ minHeight: '48px', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'default', userSelect: 'none' }}>
+                        {courtId ? (courts.find(c => String(c.id) === String(courtId))?.courtName || 'Unknown') : <span style={{ opacity: 0.4 }}>Not assigned</span>}
+                      </div>
+                    ) : (
+                      <select
+                        id="mCourt"
+                        className="form-input form-select"
+                        value={courtId}
+                        onChange={(e) => setCourtId(e.target.value)}
+                        disabled={formLoading}
+                      >
+                        <option value="">Select court...</option>
+                        {courts.map((c) => (
+                          <option key={c.id} value={c.id}>{c.courtName}</option>
+                        ))}
+                      </select>
+                    )}
                   </div>
                 </div>
                 <div className="form-row" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                   <div className="form-group flex-1" style={{ minWidth: '200px' }}>
                     <label htmlFor="sTime" className="form-label">Start Time</label>
-                    <input
-                      id="sTime"
-                      type="time"
-                      className="form-input"
-                      value={startTime}
-                      onChange={(e) => setStartTime(e.target.value)}
-                      disabled={formLoading}
-                    />
+                    {guestSession ? (
+                      <div className="form-input" style={{ minHeight: '48px', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'default', userSelect: 'none' }}>
+                        {startTime || <span style={{ opacity: 0.4 }}>Not set</span>}
+                      </div>
+                    ) : (
+                      <input
+                        id="sTime"
+                        type="time"
+                        className="form-input"
+                        value={startTime}
+                        onChange={(e) => setStartTime(e.target.value)}
+                        disabled={formLoading}
+                      />
+                    )}
                   </div>
                   <div className="form-group flex-1" style={{ minWidth: '200px' }}>
                     <label htmlFor="eTime" className="form-label">End Time</label>
-                    <input
-                      id="eTime"
-                      type="time"
-                      className="form-input"
-                      value={endTime}
-                      onChange={(e) => setEndTime(e.target.value)}
-                      disabled={formLoading}
-                    />
+                    {guestSession ? (
+                      <div className="form-input" style={{ minHeight: '48px', display: 'flex', alignItems: 'center', background: 'rgba(255,255,255,0.03)', color: 'var(--text-secondary)', cursor: 'default', userSelect: 'none' }}>
+                        {endTime || <span style={{ opacity: 0.4 }}>Not set</span>}
+                      </div>
+                    ) : (
+                      <input
+                        id="eTime"
+                        type="time"
+                        className="form-input"
+                        value={endTime}
+                        onChange={(e) => setEndTime(e.target.value)}
+                        disabled={formLoading}
+                      />
+                    )}
                   </div>
                 </div>
               </div>
+
+              {/* Reset Scores button — admin only, shown only when a result already exists */}
+              {user?.role === 'admin' && hasExistingResult && (
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
+                  <button
+                    type="button"
+                    onClick={() => setShowResetModal(true)}
+                    disabled={formLoading}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: '0.5rem',
+                      padding: '0.5rem 1.1rem', borderRadius: '10px', fontSize: '0.85rem',
+                      fontWeight: '600', cursor: 'pointer', border: '1px solid var(--color-error)',
+                      background: 'rgba(239,68,68,0.08)', color: 'var(--color-error)',
+                      transition: 'background 0.2s'
+                    }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.18)'}
+                    onMouseLeave={e => e.currentTarget.style.background = 'rgba(239,68,68,0.08)'}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="1 4 1 10 7 10"/>
+                      <path d="M3.51 15a9 9 0 1 0 .49-3.51"/>
+                    </svg>
+                    Reset the Scores
+                  </button>
+                </div>
+              )}
 
               {currentDivision?.divisionType === 'Team' ? (
                 <div>

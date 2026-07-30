@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 
-export default function Standings({ tournamentId, onNavigate }) {
+export default function Standings({ tournamentId, user, guestSession, onNavigate }) {
   const [divisions, setDivisions] = useState([]);
   const [selectedDivisionId, setSelectedDivisionId] = useState(null);
   const [groups, setGroups] = useState([]);
@@ -20,7 +20,10 @@ export default function Standings({ tournamentId, onNavigate }) {
         if (!response.ok) throw new Error('Failed to load divisions');
         const data = await response.json();
         setDivisions(data);
-        if (data.length > 0) {
+        if (guestSession) {
+          // Auto-select the guest's division
+          setSelectedDivisionId(guestSession.divisionId);
+        } else if (data.length > 0) {
           setSelectedDivisionId(data[0].id);
         } else {
           setLoading(false);
@@ -119,12 +122,29 @@ export default function Standings({ tournamentId, onNavigate }) {
   return (
     <div className="matches-page-container">
       <header className="page-header-section">
-        <h1 className="title">
-          Tournament Standings
-        </h1>
-        <p className="subtitle">
-          View ranks, points, and records of division participants.
-        </p>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+          <div>
+            <h1 className="title">
+              Tournament Standings
+            </h1>
+            <p className="subtitle">
+              View ranks, points, and records of division participants.
+            </p>
+          </div>
+          {guestSession && (
+            <button
+              className="back-btn"
+              onClick={() => onNavigate('matches', { tournamentId })}
+              style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="19" y1="12" x2="5" y2="12"/>
+                <polyline points="12 19 5 12 12 5"/>
+              </svg>
+              Back to Matches
+            </button>
+          )}
+        </div>
       </header>
 
       {divisions.length === 0 ? (
@@ -135,24 +155,27 @@ export default function Standings({ tournamentId, onNavigate }) {
         <div className="matches-list-layout">
           {/* Division + Group filter row */}
           <div className="matches-actions-bar" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'flex-end', marginBottom: '2rem' }}>
-            <div className="form-group" style={{ margin: 0, minWidth: '220px', flex: '1' }}>
-              <label htmlFor="divSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Division</label>
-              <select
-                id="divSelect"
-                className="form-input form-select"
-                value={selectedDivisionId || ''}
-                onChange={(e) => {
-                  setSelectedDivisionId(parseInt(e.target.value));
-                  setSelectedGroupId(null);
-                  setGroups([]);
-                }}
-                style={{ minHeight: '48px', cursor: 'pointer' }}
-              >
-                {divisions.map((div) => (
-                  <option key={div.id} value={div.id}>{div.name}</option>
-                ))}
-              </select>
-            </div>
+            {/* Only show division selector for non-guest users */}
+            {!guestSession && (
+              <div className="form-group" style={{ margin: 0, minWidth: '220px', flex: '1' }}>
+                <label htmlFor="divSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Division</label>
+                <select
+                  id="divSelect"
+                  className="form-input form-select"
+                  value={selectedDivisionId || ''}
+                  onChange={(e) => {
+                    setSelectedDivisionId(parseInt(e.target.value));
+                    setSelectedGroupId(null);
+                    setGroups([]);
+                  }}
+                  style={{ minHeight: '48px', cursor: 'pointer' }}
+                >
+                  {divisions.map((div) => (
+                    <option key={div.id} value={div.id}>{div.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {groups.length > 0 && (
               <div className="form-group" style={{ margin: 0, minWidth: '180px', flex: '1' }}>

@@ -240,6 +240,87 @@ public class MatchController {
     }
 
     @Transactional
+    @DeleteMapping("/results/match/{matchId}")
+    public ResponseEntity<?> resetResult(@PathVariable Long matchId) {
+        // 1. Find the result
+        Optional<Result> resultOpt = resultRepository.findByMatchId(matchId);
+        if (!resultOpt.isPresent()) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "No result found for this match");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
+        }
+        Result existing = resultOpt.get();
+
+        // 2. Find the match
+        Optional<Match> matchOpt = matchRepository.findById(matchId);
+        if (!matchOpt.isPresent()) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "Match not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
+        }
+        Match match = matchOpt.get();
+
+        // 3. Find both participants
+        Optional<Participant> p1Opt = participantRepository.findById(match.getParticipant1());
+        Optional<Participant> p2Opt = participantRepository.findById(match.getParticipant2());
+        if (!p1Opt.isPresent() || !p2Opt.isPresent()) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "One or both participants not found");
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
+        }
+        Participant p1 = p1Opt.get();
+        Participant p2 = p2Opt.get();
+
+        // 4. Calculate points contributed by this result (including set 4)
+        int s1p1 = existing.getSet1P1() != null ? existing.getSet1P1() : 0;
+        int s1p2 = existing.getSet1P2() != null ? existing.getSet1P2() : 0;
+        int s2p1 = existing.getSet2P1() != null ? existing.getSet2P1() : 0;
+        int s2p2 = existing.getSet2P2() != null ? existing.getSet2P2() : 0;
+        int s3p1 = existing.getSet3P1() != null ? existing.getSet3P1() : 0;
+        int s3p2 = existing.getSet3P2() != null ? existing.getSet3P2() : 0;
+        int s4p1 = existing.getSet4P1() != null ? existing.getSet4P1() : 0;
+        int s4p2 = existing.getSet4P2() != null ? existing.getSet4P2() : 0;
+
+        int p1PointsFor     = s1p1 + s2p1 + s3p1 + s4p1;
+        int p1PointsAgainst = s1p2 + s2p2 + s3p2 + s4p2;
+        int p2PointsFor     = p1PointsAgainst;
+        int p2PointsAgainst = p1PointsFor;
+
+        // 5. Revert P1 stats
+        p1.setMatchesPlayed(Math.max(0, (p1.getMatchesPlayed() != null ? p1.getMatchesPlayed() : 0) - 1));
+        if ("Won".equals(existing.getP1Status())) {
+            p1.setWon(Math.max(0, (p1.getWon() != null ? p1.getWon() : 0) - 1));
+        } else if ("Lost".equals(existing.getP1Status())) {
+            p1.setLost(Math.max(0, (p1.getLost() != null ? p1.getLost() : 0) - 1));
+        }
+        // Draw: neither won nor lost counters change
+        p1.setPointsFor(Math.max(0, (p1.getPointsFor() != null ? p1.getPointsFor() : 0) - p1PointsFor));
+        p1.setPointsAgaint(Math.max(0, (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0) - p1PointsAgainst));
+        p1.setPointsDiff((p1.getPointsFor() != null ? p1.getPointsFor() : 0) - (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0));
+
+        // 6. Revert P2 stats
+        p2.setMatchesPlayed(Math.max(0, (p2.getMatchesPlayed() != null ? p2.getMatchesPlayed() : 0) - 1));
+        if ("Won".equals(existing.getP2Status())) {
+            p2.setWon(Math.max(0, (p2.getWon() != null ? p2.getWon() : 0) - 1));
+        } else if ("Lost".equals(existing.getP2Status())) {
+            p2.setLost(Math.max(0, (p2.getLost() != null ? p2.getLost() : 0) - 1));
+        }
+        // Draw: neither won nor lost counters change
+        p2.setPointsFor(Math.max(0, (p2.getPointsFor() != null ? p2.getPointsFor() : 0) - p2PointsFor));
+        p2.setPointsAgaint(Math.max(0, (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0) - p2PointsAgainst));
+        p2.setPointsDiff((p2.getPointsFor() != null ? p2.getPointsFor() : 0) - (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0));
+
+        // 7. Save reverted participants and delete result
+        participantRepository.save(p1);
+        participantRepository.save(p2);
+        resultRepository.delete(existing);
+
+        Map<String, String> ok = new HashMap<>();
+        ok.put("message", "Result reset successfully");
+        return ResponseEntity.ok(ok);
+    }
+
+    @Transactional
     @PostMapping("/results")
     public ResponseEntity<?> saveResult(@RequestBody Result result) {
         if (result.getMatchId() == null) {

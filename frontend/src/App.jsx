@@ -561,6 +561,7 @@ function App() {
             key={`${selectedTournamentId}-${currentSearchQuery}`}
             tournamentId={selectedTournamentId}
             user={user}
+            guestSession={guestSession}
             onNavigate={navigate}
           />
         ) : currentPage === 'courts' ? (
