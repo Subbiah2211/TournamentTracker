@@ -292,8 +292,9 @@ public class MatchController {
             p1.setWon(Math.max(0, (p1.getWon() != null ? p1.getWon() : 0) - 1));
         } else if ("Lost".equals(existing.getP1Status())) {
             p1.setLost(Math.max(0, (p1.getLost() != null ? p1.getLost() : 0) - 1));
+        } else if ("Draw".equals(existing.getP1Status())) {
+            p1.setDrawn(Math.max(0, (p1.getDrawn() != null ? p1.getDrawn() : 0) - 1));
         }
-        // Draw: neither won nor lost counters change
         p1.setPointsFor(Math.max(0, (p1.getPointsFor() != null ? p1.getPointsFor() : 0) - p1PointsFor));
         p1.setPointsAgaint(Math.max(0, (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0) - p1PointsAgainst));
         p1.setPointsDiff((p1.getPointsFor() != null ? p1.getPointsFor() : 0) - (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0));
@@ -304,6 +305,8 @@ public class MatchController {
             p2.setWon(Math.max(0, (p2.getWon() != null ? p2.getWon() : 0) - 1));
         } else if ("Lost".equals(existing.getP2Status())) {
             p2.setLost(Math.max(0, (p2.getLost() != null ? p2.getLost() : 0) - 1));
+        } else if ("Draw".equals(existing.getP2Status())) {
+            p2.setDrawn(Math.max(0, (p2.getDrawn() != null ? p2.getDrawn() : 0) - 1));
         }
         // Draw: neither won nor lost counters change
         p2.setPointsFor(Math.max(0, (p2.getPointsFor() != null ? p2.getPointsFor() : 0) - p2PointsFor));
@@ -329,6 +332,8 @@ public class MatchController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err);
         }
 
+        String resultType = (result.getResultType() != null) ? result.getResultType() : "Normal";
+
         // 1. Find the Match
         Optional<Match> matchOpt = matchRepository.findById(result.getMatchId());
         if (!matchOpt.isPresent()) {
@@ -338,177 +343,196 @@ public class MatchController {
         }
         Match match = matchOpt.get();
 
-        // 2. Look up numSets for this division to decide win/draw threshold
-        int numSets = 3;
-        Optional<Division> divOpt = divisionRepository.findById(match.getDivisionId());
-        if (divOpt.isPresent() && divOpt.get().getNumSets() != null) {
-            numSets = divOpt.get().getNumSets();
-        }
-
-        // 3. Validate and calculate winner statuses
-        int p1SetsWon = 0;
-        int p2SetsWon = 0;
-
-        if (result.getSet1P1() != null && result.getSet1P2() != null) {
-            if (result.getSet1P1() > result.getSet1P2()) p1SetsWon++;
-            else if (result.getSet1P2() > result.getSet1P1()) p2SetsWon++;
-        }
-        if (result.getSet2P1() != null && result.getSet2P2() != null) {
-            if (result.getSet2P1() > result.getSet2P2()) p1SetsWon++;
-            else if (result.getSet2P2() > result.getSet2P1()) p2SetsWon++;
-        }
-        if (result.getSet3P1() != null && result.getSet3P2() != null) {
-            if (result.getSet3P1() > result.getSet3P2()) p1SetsWon++;
-            else if (result.getSet3P2() > result.getSet3P1()) p2SetsWon++;
-        }
-        if (numSets >= 4 && result.getSet4P1() != null && result.getSet4P2() != null) {
-            if (result.getSet4P1() > result.getSet4P2()) p1SetsWon++;
-            else if (result.getSet4P2() > result.getSet4P1()) p2SetsWon++;
-        }
-
-        if (numSets == 4 && p1SetsWon == 2 && p2SetsWon == 2) {
-            // 4-set Draw
-            result.setP1Status("Draw");
-            result.setP2Status("Draw");
-        } else if (p1SetsWon > p2SetsWon && (numSets == 4 ? p1SetsWon >= 3 : p1SetsWon >= 2)) {
-            result.setP1Status("Won");
-            result.setP2Status("Lost");
-        } else if (p2SetsWon > p1SetsWon && (numSets == 4 ? p2SetsWon >= 3 : p2SetsWon >= 2)) {
-            result.setP1Status("Lost");
-            result.setP2Status("Won");
-        } else {
-            Map<String, String> err = new HashMap<>();
-            err.put("error", numSets == 4
-                ? "Invalid scores. In a 4-set match one team must win 3 sets, or both teams win 2 sets (Draw)."
-                : "Invalid scores. One participant must win at least 2 sets.");
-            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err);
-        }
-
-        // 3. Find participants by ID
+        // 2. Find participants
         Optional<Participant> p1Opt = participantRepository.findById(match.getParticipant1());
         Optional<Participant> p2Opt = participantRepository.findById(match.getParticipant2());
-
         if (!p1Opt.isPresent() || !p2Opt.isPresent()) {
             Map<String, String> err = new HashMap<>();
             err.put("error", "One or both participants not found");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
         }
-
         Participant p1 = p1Opt.get();
         Participant p2 = p2Opt.get();
 
-        // Calculate match stats to apply
-        int set1P1Val = result.getSet1P1() != null ? result.getSet1P1() : 0;
-        int set1P2Val = result.getSet1P2() != null ? result.getSet1P2() : 0;
-        int set2P1Val = result.getSet2P1() != null ? result.getSet2P1() : 0;
-        int set2P2Val = result.getSet2P2() != null ? result.getSet2P2() : 0;
-        int set3P1Val = result.getSet3P1() != null ? result.getSet3P1() : 0;
-        int set3P2Val = result.getSet3P2() != null ? result.getSet3P2() : 0;
-        int set4P1Val = result.getSet4P1() != null ? result.getSet4P1() : 0;
-        int set4P2Val = result.getSet4P2() != null ? result.getSet4P2() : 0;
+        // 3. For Normal results: validate scores and derive statuses
+        int newP1PointsFor = 0, newP1PointsAgainst = 0;
+        int newP2PointsFor = 0, newP2PointsAgainst = 0;
 
-        int newP1PointsFor = set1P1Val + set2P1Val + set3P1Val + set4P1Val;
-        int newP1PointsAgainst = set1P2Val + set2P2Val + set3P2Val + set4P2Val;
+        if ("Normal".equals(resultType)) {
+            int numSets = 3;
+            Optional<Division> divOpt = divisionRepository.findById(match.getDivisionId());
+            if (divOpt.isPresent() && divOpt.get().getNumSets() != null) {
+                numSets = divOpt.get().getNumSets();
+            }
 
-        int newP2PointsFor = newP1PointsAgainst;
-        int newP2PointsAgainst = newP1PointsFor;
+            int p1SetsWon = 0, p2SetsWon = 0;
+            if (result.getSet1P1() != null && result.getSet1P2() != null) {
+                if (result.getSet1P1() > result.getSet1P2()) p1SetsWon++;
+                else if (result.getSet1P2() > result.getSet1P1()) p2SetsWon++;
+            }
+            if (result.getSet2P1() != null && result.getSet2P2() != null) {
+                if (result.getSet2P1() > result.getSet2P2()) p1SetsWon++;
+                else if (result.getSet2P2() > result.getSet2P1()) p2SetsWon++;
+            }
+            if (result.getSet3P1() != null && result.getSet3P2() != null) {
+                if (result.getSet3P1() > result.getSet3P2()) p1SetsWon++;
+                else if (result.getSet3P2() > result.getSet3P1()) p2SetsWon++;
+            }
+            if (numSets >= 4 && result.getSet4P1() != null && result.getSet4P2() != null) {
+                if (result.getSet4P1() > result.getSet4P2()) p1SetsWon++;
+                else if (result.getSet4P2() > result.getSet4P1()) p2SetsWon++;
+            }
 
-        // Check if result already exists for this match
+            if (numSets == 4 && p1SetsWon == 2 && p2SetsWon == 2) {
+                result.setP1Status("Draw");
+                result.setP2Status("Draw");
+            } else if (p1SetsWon > p2SetsWon && (numSets == 4 ? p1SetsWon >= 3 : p1SetsWon >= 2)) {
+                result.setP1Status("Won");
+                result.setP2Status("Lost");
+            } else if (p2SetsWon > p1SetsWon && (numSets == 4 ? p2SetsWon >= 3 : p2SetsWon >= 2)) {
+                result.setP1Status("Lost");
+                result.setP2Status("Won");
+            } else {
+                Map<String, String> err = new HashMap<>();
+                err.put("error", numSets == 4
+                    ? "Invalid scores. In a 4-set match one team must win 3 sets, or both teams win 2 sets (Draw)."
+                    : "Invalid scores. One participant must win at least 2 sets.");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err);
+            }
+
+            int s1p1 = result.getSet1P1() != null ? result.getSet1P1() : 0;
+            int s1p2 = result.getSet1P2() != null ? result.getSet1P2() : 0;
+            int s2p1 = result.getSet2P1() != null ? result.getSet2P1() : 0;
+            int s2p2 = result.getSet2P2() != null ? result.getSet2P2() : 0;
+            int s3p1 = result.getSet3P1() != null ? result.getSet3P1() : 0;
+            int s3p2 = result.getSet3P2() != null ? result.getSet3P2() : 0;
+            int s4p1 = result.getSet4P1() != null ? result.getSet4P1() : 0;
+            int s4p2 = result.getSet4P2() != null ? result.getSet4P2() : 0;
+            newP1PointsFor     = s1p1 + s2p1 + s3p1 + s4p1;
+            newP1PointsAgainst = s1p2 + s2p2 + s3p2 + s4p2;
+            newP2PointsFor     = newP1PointsAgainst;
+            newP2PointsAgainst = newP1PointsFor;
+
+        } else if ("Forfeit".equals(resultType)) {
+            // p1Status/p2Status already set by frontend (Won/Lost based on who forfeited)
+            // Clear all set scores
+            result.setSet1P1(null); result.setSet1P2(null);
+            result.setSet2P1(null); result.setSet2P2(null);
+            result.setSet3P1(null); result.setSet3P2(null);
+            result.setSet4P1(null); result.setSet4P2(null);
+            result.setSet1P1At11(null); result.setSet1P2At11(null);
+            result.setSet2P1At11(null); result.setSet2P2At11(null);
+            result.setSet3P1At11(null); result.setSet3P2At11(null);
+            // Points stay 0 — no game played
+
+        } else if ("Cancelled".equals(resultType)) {
+            result.setP1Status("Draw");
+            result.setP2Status("Draw");
+            result.setSet1P1(null); result.setSet1P2(null);
+            result.setSet2P1(null); result.setSet2P2(null);
+            result.setSet3P1(null); result.setSet3P2(null);
+            result.setSet4P1(null); result.setSet4P2(null);
+            result.setSet1P1At11(null); result.setSet1P2At11(null);
+            result.setSet2P1At11(null); result.setSet2P2At11(null);
+            result.setSet3P1At11(null); result.setSet3P2At11(null);
+        } else {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "Unknown result type: " + resultType);
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err);
+        }
+
+        // 4. Revert existing result if overwriting
         Optional<Result> existingOpt = resultRepository.findByMatchId(result.getMatchId());
         Result savedResult;
 
         if (existingOpt.isPresent()) {
             Result existing = existingOpt.get();
+            String oldType = existing.getResultType() != null ? existing.getResultType() : "Normal";
 
-            // Revert previous stats from existing result
-            int oldSet1P1 = existing.getSet1P1() != null ? existing.getSet1P1() : 0;
-            int oldSet1P2 = existing.getSet1P2() != null ? existing.getSet1P2() : 0;
-            int oldSet2P1 = existing.getSet2P1() != null ? existing.getSet2P1() : 0;
-            int oldSet2P2 = existing.getSet2P2() != null ? existing.getSet2P2() : 0;
-            int oldSet3P1 = existing.getSet3P1() != null ? existing.getSet3P1() : 0;
-            int oldSet3P2 = existing.getSet3P2() != null ? existing.getSet3P2() : 0;
+            // Revert old points (only applicable for Normal)
+            int oldS1p1 = existing.getSet1P1() != null ? existing.getSet1P1() : 0;
+            int oldS1p2 = existing.getSet1P2() != null ? existing.getSet1P2() : 0;
+            int oldS2p1 = existing.getSet2P1() != null ? existing.getSet2P1() : 0;
+            int oldS2p2 = existing.getSet2P2() != null ? existing.getSet2P2() : 0;
+            int oldS3p1 = existing.getSet3P1() != null ? existing.getSet3P1() : 0;
+            int oldS3p2 = existing.getSet3P2() != null ? existing.getSet3P2() : 0;
+            int oldS4p1 = existing.getSet4P1() != null ? existing.getSet4P1() : 0;
+            int oldS4p2 = existing.getSet4P2() != null ? existing.getSet4P2() : 0;
+            int oldP1For = oldS1p1 + oldS2p1 + oldS3p1 + oldS4p1;
+            int oldP1Against = oldS1p2 + oldS2p2 + oldS3p2 + oldS4p2;
 
-            int oldP1PointsFor = oldSet1P1 + oldSet2P1 + oldSet3P1;
-            int oldP1PointsAgainst = oldSet1P2 + oldSet2P2 + oldSet3P2;
-
-            int oldP2PointsFor = oldP1PointsAgainst;
-            int oldP2PointsAgainst = oldP1PointsFor;
-
-            // Revert P1 stats
+            // Revert P1
             p1.setMatchesPlayed(Math.max(0, (p1.getMatchesPlayed() != null ? p1.getMatchesPlayed() : 0) - 1));
             if ("Won".equals(existing.getP1Status())) {
                 p1.setWon(Math.max(0, (p1.getWon() != null ? p1.getWon() : 0) - 1));
             } else if ("Lost".equals(existing.getP1Status())) {
                 p1.setLost(Math.max(0, (p1.getLost() != null ? p1.getLost() : 0) - 1));
+            } else if ("Draw".equals(existing.getP1Status())) {
+                p1.setDrawn(Math.max(0, (p1.getDrawn() != null ? p1.getDrawn() : 0) - 1));
             }
-            // Draw: neither won nor lost counters change
-            p1.setPointsFor(Math.max(0, (p1.getPointsFor() != null ? p1.getPointsFor() : 0) - oldP1PointsFor));
-            p1.setPointsAgaint(Math.max(0, (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0) - oldP1PointsAgainst));
+            p1.setPointsFor(Math.max(0, (p1.getPointsFor() != null ? p1.getPointsFor() : 0) - oldP1For));
+            p1.setPointsAgaint(Math.max(0, (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0) - oldP1Against));
             p1.setPointsDiff((p1.getPointsFor() != null ? p1.getPointsFor() : 0) - (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0));
 
-            // Revert P2 stats
+            // Revert P2
             p2.setMatchesPlayed(Math.max(0, (p2.getMatchesPlayed() != null ? p2.getMatchesPlayed() : 0) - 1));
             if ("Won".equals(existing.getP2Status())) {
                 p2.setWon(Math.max(0, (p2.getWon() != null ? p2.getWon() : 0) - 1));
             } else if ("Lost".equals(existing.getP2Status())) {
                 p2.setLost(Math.max(0, (p2.getLost() != null ? p2.getLost() : 0) - 1));
+            } else if ("Draw".equals(existing.getP2Status())) {
+                p2.setDrawn(Math.max(0, (p2.getDrawn() != null ? p2.getDrawn() : 0) - 1));
             }
-            // Draw: neither won nor lost counters change
-            p2.setPointsFor(Math.max(0, (p2.getPointsFor() != null ? p2.getPointsFor() : 0) - oldP2PointsFor));
-            p2.setPointsAgaint(Math.max(0, (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0) - oldP2PointsAgainst));
+            p2.setPointsFor(Math.max(0, (p2.getPointsFor() != null ? p2.getPointsFor() : 0) - oldP1Against));
+            p2.setPointsAgaint(Math.max(0, (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0) - oldP1For));
             p2.setPointsDiff((p2.getPointsFor() != null ? p2.getPointsFor() : 0) - (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0));
 
-            // Update existing result fields
-            existing.setSet1P1(result.getSet1P1());
-            existing.setSet1P2(result.getSet1P2());
-            existing.setSet2P1(result.getSet2P1());
-            existing.setSet2P2(result.getSet2P2());
-            existing.setSet3P1(result.getSet3P1());
-            existing.setSet3P2(result.getSet3P2());
-            existing.setSet4P1(result.getSet4P1());
-            existing.setSet4P2(result.getSet4P2());
-            existing.setSet1P1At11(result.getSet1P1At11());
-            existing.setSet1P2At11(result.getSet1P2At11());
-            existing.setSet2P1At11(result.getSet2P1At11());
-            existing.setSet2P2At11(result.getSet2P2At11());
-            existing.setSet3P1At11(result.getSet3P1At11());
-            existing.setSet3P2At11(result.getSet3P2At11());
+            // Update result fields
+            existing.setSet1P1(result.getSet1P1()); existing.setSet1P2(result.getSet1P2());
+            existing.setSet2P1(result.getSet2P1()); existing.setSet2P2(result.getSet2P2());
+            existing.setSet3P1(result.getSet3P1()); existing.setSet3P2(result.getSet3P2());
+            existing.setSet4P1(result.getSet4P1()); existing.setSet4P2(result.getSet4P2());
+            existing.setSet1P1At11(result.getSet1P1At11()); existing.setSet1P2At11(result.getSet1P2At11());
+            existing.setSet2P1At11(result.getSet2P1At11()); existing.setSet2P2At11(result.getSet2P2At11());
+            existing.setSet3P1At11(result.getSet3P1At11()); existing.setSet3P2At11(result.getSet3P2At11());
             existing.setP1Status(result.getP1Status());
             existing.setP2Status(result.getP2Status());
+            existing.setResultType(resultType);
             existing.setLastEditedByPlayerId(result.getLastEditedByPlayerId());
             existing.setLastEditedAt(OffsetDateTime.now());
-
             savedResult = resultRepository.save(existing);
         } else {
+            result.setResultType(resultType);
             result.setLastEditedAt(OffsetDateTime.now());
             savedResult = resultRepository.save(result);
         }
 
-        // 4. Apply new stats for P1
+        // 5. Apply new stats for P1
         p1.setMatchesPlayed((p1.getMatchesPlayed() != null ? p1.getMatchesPlayed() : 0) + 1);
         if ("Won".equals(result.getP1Status())) {
             p1.setWon((p1.getWon() != null ? p1.getWon() : 0) + 1);
         } else if ("Lost".equals(result.getP1Status())) {
             p1.setLost((p1.getLost() != null ? p1.getLost() : 0) + 1);
+        } else if ("Draw".equals(result.getP1Status())) {
+            p1.setDrawn((p1.getDrawn() != null ? p1.getDrawn() : 0) + 1);
         }
-        // Draw: neither won nor lost
         p1.setPointsFor((p1.getPointsFor() != null ? p1.getPointsFor() : 0) + newP1PointsFor);
         p1.setPointsAgaint((p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0) + newP1PointsAgainst);
         p1.setPointsDiff((p1.getPointsFor() != null ? p1.getPointsFor() : 0) - (p1.getPointsAgaint() != null ? p1.getPointsAgaint() : 0));
 
-        // 5. Apply new stats for P2
+        // 6. Apply new stats for P2
         p2.setMatchesPlayed((p2.getMatchesPlayed() != null ? p2.getMatchesPlayed() : 0) + 1);
         if ("Won".equals(result.getP2Status())) {
             p2.setWon((p2.getWon() != null ? p2.getWon() : 0) + 1);
         } else if ("Lost".equals(result.getP2Status())) {
             p2.setLost((p2.getLost() != null ? p2.getLost() : 0) + 1);
+        } else if ("Draw".equals(result.getP2Status())) {
+            p2.setDrawn((p2.getDrawn() != null ? p2.getDrawn() : 0) + 1);
         }
-        // Draw: neither won nor lost
         p2.setPointsFor((p2.getPointsFor() != null ? p2.getPointsFor() : 0) + newP2PointsFor);
         p2.setPointsAgaint((p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0) + newP2PointsAgainst);
         p2.setPointsDiff((p2.getPointsFor() != null ? p2.getPointsFor() : 0) - (p2.getPointsAgaint() != null ? p2.getPointsAgaint() : 0));
 
-        // Save updated participants
         participantRepository.save(p1);
         participantRepository.save(p2);
 

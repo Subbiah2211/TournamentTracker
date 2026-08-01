@@ -40,6 +40,9 @@ public class Participant {
     @Column(name = "lost")
     private Long lost;
 
+    @Column(name = "drawn")
+    private Long drawn;
+
     @Column(name = "points_for")
     private Long pointsFor;
 
@@ -128,6 +131,14 @@ public class Participant {
 
     public void setLost(Long lost) {
         this.lost = lost;
+    }
+
+    public Long getDrawn() {
+        return drawn;
+    }
+
+    public void setDrawn(Long drawn) {
+        this.drawn = drawn;
     }
 
     public Long getPointsFor() {

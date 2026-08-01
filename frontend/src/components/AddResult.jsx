@@ -50,6 +50,10 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
+  // Special result type — admin only
+  const [resultType, setResultType] = useState('Normal'); // 'Normal' | 'Forfeit' | 'Cancelled'
+  const [forfeitingParticipantId, setForfeitingParticipantId] = useState('');
+
   const [participants, setParticipants] = useState([]);
 
   // Fetch participants when selectedDivisionId changes
@@ -230,6 +234,15 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           setSet2P2At11(resData.set2P2At11 !== null ? String(resData.set2P2At11) : '');
           setSet3P1At11(resData.set3P1At11 !== null ? String(resData.set3P1At11) : '');
           setSet3P2At11(resData.set3P2At11 !== null ? String(resData.set3P2At11) : '');
+          setResultType(resData.resultType || 'Normal');
+          // For Forfeit: figure out which participant forfeited (the Lost one)
+          if (resData.resultType === 'Forfeit' && resData.p2Status === 'Lost') {
+            setForfeitingParticipantId(String(matchDetails?.participant2 || ''));
+          } else if (resData.resultType === 'Forfeit' && resData.p1Status === 'Lost') {
+            setForfeitingParticipantId(String(matchDetails?.participant1 || ''));
+          } else {
+            setForfeitingParticipantId('');
+          }
           setHasExistingResult(true);
         } else {
           clearScores();
@@ -299,6 +312,8 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     setTeamPlayers1([]);
     setTeamPlayers2([]);
     setHasExistingResult(false);
+    setResultType('Normal');
+    setForfeitingParticipantId('');
   };
 
   const handleDivisionChange = (divId) => {
@@ -408,14 +423,19 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     e.preventDefault();
     setFormError('');
 
-    if (!validateForm()) return;
+    // For special result types, skip the normal score validation
+    if (resultType === 'Normal' && !validateForm()) return;
+    if (resultType === 'Forfeit' && !forfeitingParticipantId) {
+      setFormError('Please select which team forfeited the match.');
+      return;
+    }
 
     setFormLoading(true);
 
     const hasScores = set1P1 !== '' || set1P2 !== '' || set2P1 !== '' || set2P2 !== '' || set3P1 !== '' || set3P2 !== '';
 
     try {
-      // 1. Update Match Details
+      // 1. Update Match Details (always)
       const matchPayload = {
         matchDate: matchDate || null,
         startTime: startTime || null,
@@ -434,8 +454,49 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
         throw new Error('Failed to update match details.');
       }
 
-      // 2. Update Scores if present
-      if (hasScores) {
+      // 2. Save result based on resultType
+      if (resultType === 'Forfeit') {
+        // Determine winner: the team that did NOT forfeit
+        const p1Id = String(matchDetails.participant1);
+        const p2Id = String(matchDetails.participant2);
+        const forfeitedP1 = forfeitingParticipantId === p1Id;
+        const resultPayload = {
+          matchId: parseInt(selectedMatchId),
+          p1Status: forfeitedP1 ? 'Lost' : 'Won',
+          p2Status: forfeitedP1 ? 'Won' : 'Lost',
+          resultType: 'Forfeit',
+          lastEditedByPlayerId: guestSession ? guestSession.playerId : null
+        };
+        const resp = await fetch(`${API_BASE_URL}/api/results`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(resultPayload)
+        });
+        if (!resp.ok) {
+          const errorData = await resp.json();
+          throw new Error(errorData.error || 'Failed to save forfeit result.');
+        }
+
+      } else if (resultType === 'Cancelled') {
+        const resultPayload = {
+          matchId: parseInt(selectedMatchId),
+          p1Status: 'Draw',
+          p2Status: 'Draw',
+          resultType: 'Cancelled',
+          lastEditedByPlayerId: guestSession ? guestSession.playerId : null
+        };
+        const resp = await fetch(`${API_BASE_URL}/api/results`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(resultPayload)
+        });
+        if (!resp.ok) {
+          const errorData = await resp.json();
+          throw new Error(errorData.error || 'Failed to save cancellation.');
+        }
+
+      } else if (hasScores) {
+        // Normal match with scores
         const resultPayload = {
           matchId: parseInt(selectedMatchId),
           set1P1: parseInt(set1P1),
@@ -452,6 +513,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           set2P2At11: set2P2At11 !== '' ? parseInt(set2P2At11) : null,
           set3P1At11: set3P1At11 !== '' ? parseInt(set3P1At11) : null,
           set3P2At11: set3P2At11 !== '' ? parseInt(set3P2At11) : null,
+          resultType: 'Normal',
           lastEditedByPlayerId: guestSession ? guestSession.playerId : null
         };
 
@@ -950,8 +1012,67 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                 </div>
               </div>
 
-              {/* Reset Scores button — admin only, shown only when a result already exists */}
-              {user?.role === 'admin' && hasExistingResult && (
+              {/* Special Result panel — admin only */}
+              {user?.role === 'admin' && (
+                <div style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--glass-border)', borderRadius: '14px', padding: '1.25rem 1.5rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                    <div className="form-group" style={{ margin: 0, flex: '1', minWidth: '220px' }}>
+                      <label htmlFor="resultTypeSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Match Outcome</label>
+                      <select
+                        id="resultTypeSelect"
+                        className="form-input form-select"
+                        value={resultType}
+                        onChange={(e) => {
+                          setResultType(e.target.value);
+                          setForfeitingParticipantId('');
+                          setFormError('');
+                        }}
+                        disabled={formLoading}
+                        style={{ minHeight: '44px', cursor: 'pointer' }}
+                      >
+                        <option value="Normal">Normal Match</option>
+                        <option value="Forfeit">Forfeit — one team didn't appear</option>
+                        <option value="Cancelled">Match Cancelled / Not Played</option>
+                      </select>
+                    </div>
+
+                    {resultType === 'Forfeit' && (
+                      <div className="form-group" style={{ margin: 0, flex: '1', minWidth: '220px' }}>
+                        <label htmlFor="forfeitTeamSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Which team forfeited?</label>
+                        <select
+                          id="forfeitTeamSelect"
+                          className="form-input form-select"
+                          value={forfeitingParticipantId}
+                          onChange={(e) => setForfeitingParticipantId(e.target.value)}
+                          disabled={formLoading}
+                          style={{ minHeight: '44px', cursor: 'pointer' }}
+                        >
+                          <option value="">Select forfeiting team...</option>
+                          <option value={String(matchDetails.participant1)}>{matchDetails.participant1Name}</option>
+                          <option value={String(matchDetails.participant2)}>{matchDetails.participant2Name}</option>
+                        </select>
+                      </div>
+                    )}
+
+                    {resultType === 'Forfeit' && forfeitingParticipantId && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(34,197,94,0.08)', border: '1px solid rgba(34,197,94,0.25)', borderRadius: '10px', padding: '0.6rem 1rem', fontSize: '0.875rem', color: '#4ade80', flexShrink: 0 }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        {forfeitingParticipantId === String(matchDetails.participant1) ? matchDetails.participant2Name : matchDetails.participant1Name} declared winner
+                      </div>
+                    )}
+
+                    {resultType === 'Cancelled' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(148,163,184,0.08)', border: '1px solid rgba(148,163,184,0.2)', borderRadius: '10px', padding: '0.6rem 1rem', fontSize: '0.875rem', color: 'var(--text-secondary)', flexShrink: 0 }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                        Both teams awarded a Draw — no scores required
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Reset Scores button — admin only, shown only when a result already exists and result type is Normal */}
+              {user?.role === 'admin' && hasExistingResult && resultType === 'Normal' && (
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '0.75rem' }}>
                   <button
                     type="button"
@@ -976,7 +1097,8 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                 </div>
               )}
 
-              {currentDivision?.divisionType === 'Team' ? (
+              {/* Score entry — hidden for Forfeit / Cancelled */}
+              {resultType === 'Normal' && (currentDivision?.divisionType === 'Team' ? (
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet (Team Format)</h3>
                   {renderTeamSetCard(1, set1P1At11, setSet1P1At11, set1P2At11, setSet1P2At11, set1P1, setSet1P1, set1P2, setSet1P2, teamPlayers1, teamPlayers2)}
@@ -1098,10 +1220,11 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                   {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
                   {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
                 </div>
-              )}
+              ))}
+
 
               {/* ── Set 4 ── Singles Set (only for 4-set divisions) */}
-              {currentDivision?.numSets === 4 && matchDetails && (
+              {resultType === 'Normal' && currentDivision?.numSets === 4 && matchDetails && (
                 <div style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
                     <div style={{ background: 'var(--primary)', color: '#fff', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>4</div>

@@ -59,11 +59,14 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
         
         const params = new URLSearchParams(searchQuery || '');
         const divId = params.get('divisionId');
+        const savedDivId = localStorage.getItem('lastDivisionId');
         
         if (guestSession) {
           setSelectedDivisionId(guestSession.divisionId);
         } else if (divId && data.some(d => d.id === parseInt(divId))) {
           setSelectedDivisionId(parseInt(divId));
+        } else if (savedDivId && data.some(d => d.id === parseInt(savedDivId))) {
+          setSelectedDivisionId(parseInt(savedDivId));
         } else if (data.length > 0) {
           setSelectedDivisionId(data[0].id);
         } else {
@@ -107,7 +110,10 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
       }
     };
     fetchGroups();
-  }, [selectedDivisionId]);
+    if (selectedDivisionId && !guestSession) {
+      localStorage.setItem('lastDivisionId', selectedDivisionId.toString());
+    }
+  }, [selectedDivisionId, guestSession]);
 
   // 3. Fetch Matches for selected Group (or Division if no groups)
   useEffect(() => {
@@ -254,9 +260,10 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
         String(m.participant2) === selectedTeamFilter
       );
 
-  // Partition matches into Upcoming vs Completed (handling null matchDate as upcoming)
-  const upcomingMatches = filteredMatches.filter(m => !m.matchDate || m.matchDate >= todayStr);
-  const completedMatches = filteredMatches.filter(m => m.matchDate && m.matchDate < todayStr);
+  // Partition matches into Today, Upcoming vs Past (handling null matchDate as upcoming)
+  const todaysMatches = filteredMatches.filter(m => m.matchDate === todayStr);
+  const upcomingMatches = filteredMatches.filter(m => !m.matchDate || m.matchDate > todayStr);
+  const pastMatches = filteredMatches.filter(m => m.matchDate && m.matchDate < todayStr);
 
   // Sorting descending by date and time, ascending by round
   const sortMatches = (list) => {
@@ -274,11 +281,13 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
     });
   };
 
+  // Final arrays to render
+  const sortedTodays = sortMatches(todaysMatches);
   const sortedUpcoming = sortMatches(upcomingMatches);
-  const sortedCompleted = sortMatches(completedMatches);
+  const sortedPast = sortMatches(pastMatches);
 
   const displayedUpcoming = upcomingExpanded ? sortedUpcoming : sortedUpcoming.slice(0, 3);
-  const displayedCompleted = completedExpanded ? sortedCompleted : sortedCompleted.slice(0, 3);
+  const displayedCompleted = completedExpanded ? sortedPast : sortedPast.slice(0, 5);
 
   const handleAutoSchedule = async (mode, value) => {
     if (!selectedGroupId || !selectedDivisionId) return;
@@ -682,6 +691,71 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                 <div className="matches-sections-container" style={{ display: 'flex', flexDirection: 'column', gap: '3rem' }}>
                   <section className="matches-section">
                     <h2 className="section-title" style={{ fontFamily: 'var(--font-title)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>Today's Matches</span>
+                      <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px' }}>{sortedTodays.length}</span>
+                    </h2>
+
+                    {sortedTodays.length === 0 ? (
+                      <div className="empty-section-card" style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)', borderRadius: '16px' }}>
+                        No matches scheduled for today.
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                        {sortedTodays.map(m => (
+                          <div key={m.matchId} className="match-card" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', transition: 'all 0.25s' }}>
+                            <div className="match-card-line1" style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
+                              {canEditResults ? (
+                                <a
+                                  href={`/add-result?tournamentId=${tournamentId}&matchId=${m.matchId}`}
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    onNavigate('add-result', { matchId: m.matchId });
+                                  }}
+                                  style={{ color: 'var(--primary)', textDecoration: 'none', cursor: 'pointer', transition: 'all 0.2s' }}
+                                  onMouseEnter={(e) => e.target.style.textDecoration = 'underline'}
+                                  onMouseLeave={(e) => e.target.style.textDecoration = 'none'}
+                                >
+                                  {m.participant1Name} vs {m.participant2Name}
+                                </a>
+                              ) : (
+                                <span>{m.participant1Name} vs {m.participant2Name}</span>
+                              )}
+                              {getMatchBadgeText(m) && (
+                                <span style={{ marginLeft: 'auto', fontSize: '0.75rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255, 255, 255, 0.08)', padding: '2px 8px', borderRadius: '8px' }}>
+                                  {getMatchBadgeText(m)}
+                                </span>
+                              )}
+                            </div>
+                            {(m.matchDate || m.startTime) && (
+                              <div className="match-card-line2" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
+                                {m.matchDate} {m.startTime ? `@ ${m.startTime}` : ''}
+                              </div>
+                            )}
+                            {(m.p1Status || m.p2Status) && (
+                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+                                {m.resultType === 'Cancelled' ? (
+                                  <span style={{ color: 'var(--text-secondary)', background: 'rgba(148,163,184,0.12)', padding: '2px 10px', borderRadius: '8px', fontWeight: '500', fontSize: '0.8rem' }}>Match Cancelled — Draw</span>
+                                ) : m.resultType === 'Forfeit' ? (
+                                  <span style={{ color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem' }}>
+                                    {m.p1Status === 'Won' ? m.participant1Name : m.participant2Name} won by forfeit
+                                  </span>
+                                ) : m.p1Status === 'Draw' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>Match Drawn</span>
+                                ) : m.p1Status === 'Won' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant1Name} Won</span>
+                                ) : m.p2Status === 'Won' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant2Name} Won</span>
+                                ) : null}
+                              </div>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </section>
+
+                  <section className="matches-section">
+                    <h2 className="section-title" style={{ fontFamily: 'var(--font-title)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <span>Upcoming Matches</span>
                       <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px' }}>{sortedUpcoming.length}</span>
                     </h2>
@@ -723,8 +797,20 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                               </div>
                             )}
                             {(m.p1Status || m.p2Status) && (
-                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--accent-pickleball)' }}>
-                                {m.p1Status === 'Draw' ? 'Match Drawn' : m.p1Status === 'Won' ? `${m.participant1Name} Won` : m.p2Status === 'Won' ? `${m.participant2Name} Won` : ''}
+                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+                                {m.resultType === 'Cancelled' ? (
+                                  <span style={{ color: 'var(--text-secondary)', background: 'rgba(148,163,184,0.12)', padding: '2px 10px', borderRadius: '8px', fontWeight: '500', fontSize: '0.8rem' }}>Match Cancelled — Draw</span>
+                                ) : m.resultType === 'Forfeit' ? (
+                                  <span style={{ color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem' }}>
+                                    {m.p1Status === 'Won' ? m.participant1Name : m.participant2Name} won by forfeit
+                                  </span>
+                                ) : m.p1Status === 'Draw' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>Match Drawn</span>
+                                ) : m.p1Status === 'Won' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant1Name} Won</span>
+                                ) : m.p2Status === 'Won' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant2Name} Won</span>
+                                ) : null}
                               </div>
                             )}
                           </div>
@@ -744,17 +830,17 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
 
                   <section className="matches-section">
                     <h2 className="section-title" style={{ fontFamily: 'var(--font-title)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <span>Completed Matches</span>
-                      <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px' }}>{sortedCompleted.length}</span>
+                      <span>Past Matches</span>
+                      <span style={{ fontSize: '0.875rem', fontWeight: '500', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.05)', padding: '2px 8px', borderRadius: '12px' }}>{sortedPast.length}</span>
                     </h2>
 
-                    {sortedCompleted.length === 0 ? (
+                    {sortedPast.length === 0 ? (
                       <div className="empty-section-card" style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--text-secondary)', background: 'rgba(255,255,255,0.01)', border: '1px dashed var(--glass-border)', borderRadius: '16px' }}>
-                        No completed matches.
+                        No past matches.
                       </div>
                     ) : (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {displayedCompleted.map((m) => (
+                        {(completedExpanded ? sortedPast : sortedPast.slice(0, 5)).map(m => (
                           <div key={m.matchId} className="match-card" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.5rem', transition: 'all 0.25s' }}>
                             <div className="match-card-line1" style={{ fontSize: '1.2rem', fontWeight: '600', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: '10px' }}>
                               {canEditResults ? (
@@ -785,16 +871,28 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                               </div>
                             )}
                             {(m.p1Status || m.p2Status) && (
-                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--accent-pickleball)' }}>
-                                {m.p1Status === 'Draw' ? 'Match Drawn' : m.p1Status === 'Won' ? `${m.participant1Name} Won` : m.p2Status === 'Won' ? `${m.participant2Name} Won` : ''}
+                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+                                {m.resultType === 'Cancelled' ? (
+                                  <span style={{ color: 'var(--text-secondary)', background: 'rgba(148,163,184,0.12)', padding: '2px 10px', borderRadius: '8px', fontWeight: '500', fontSize: '0.8rem' }}>Match Cancelled — Draw</span>
+                                ) : m.resultType === 'Forfeit' ? (
+                                  <span style={{ color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem' }}>
+                                    {m.p1Status === 'Won' ? m.participant1Name : m.participant2Name} won by forfeit
+                                  </span>
+                                ) : m.p1Status === 'Draw' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>Match Drawn</span>
+                                ) : m.p1Status === 'Won' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant1Name} Won</span>
+                                ) : m.p2Status === 'Won' ? (
+                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant2Name} Won</span>
+                                ) : null}
                               </div>
                             )}
                           </div>
                         ))}
 
-                        {sortedCompleted.length > 3 && (
+                        {sortedPast.length > 5 && (
                           <button className="expand-section-btn" onClick={() => setCompletedExpanded(!completedExpanded)} style={{ alignSelf: 'flex-start', background: 'none', border: 'none', color: 'var(--primary)', fontWeight: '600', cursor: 'pointer', padding: '4px 0', fontSize: '0.95rem', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                            {completedExpanded ? 'Show Less' : `Show All (${sortedCompleted.length})`}
+                              {completedExpanded ? 'Show Less' : `Show All Past Matches (${sortedPast.length})`}
                             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: completedExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
                               <polyline points="6 9 12 15 18 9"></polyline>
                             </svg>

@@ -75,6 +75,10 @@ public class Result {
     @Column(name = "last_edited_at")
     private OffsetDateTime lastEditedAt;
 
+    // 'Normal' | 'Forfeit' | 'Cancelled'
+    @Column(name = "result_type")
+    private String resultType;
+
     public Result() {}
 
     public Result(Long matchId, Integer set1P1, Integer set1P2, Integer set2P1, Integer set2P2,
@@ -248,5 +252,13 @@ public class Result {
 
     public void setLastEditedAt(OffsetDateTime lastEditedAt) {
         this.lastEditedAt = lastEditedAt;
+    }
+
+    public String getResultType() {
+        return resultType;
+    }
+
+    public void setResultType(String resultType) {
+        this.resultType = resultType;
     }
 }

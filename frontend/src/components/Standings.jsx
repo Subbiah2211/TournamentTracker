@@ -20,9 +20,12 @@ export default function Standings({ tournamentId, user, guestSession, onNavigate
         if (!response.ok) throw new Error('Failed to load divisions');
         const data = await response.json();
         setDivisions(data);
+        const savedDivId = localStorage.getItem('lastDivisionId');
         if (guestSession) {
           // Auto-select the guest's division
           setSelectedDivisionId(guestSession.divisionId);
+        } else if (savedDivId && data.some(d => d.id === parseInt(savedDivId))) {
+          setSelectedDivisionId(parseInt(savedDivId));
         } else if (data.length > 0) {
           setSelectedDivisionId(data[0].id);
         } else {
@@ -60,7 +63,11 @@ export default function Standings({ tournamentId, user, guestSession, onNavigate
       }
     };
     loadGroups();
-  }, [selectedDivisionId]);
+    
+    if (selectedDivisionId && !guestSession) {
+      localStorage.setItem('lastDivisionId', selectedDivisionId.toString());
+    }
+  }, [selectedDivisionId, guestSession]);
 
   // 3. Fetch Participants when selected group (or division) changes
   useEffect(() => {
@@ -93,6 +100,9 @@ export default function Standings({ tournamentId, user, guestSession, onNavigate
     const winsA = a.won || 0;
     const winsB = b.won || 0;
     if (winsA !== winsB) return winsB - winsA;
+    const drawnA = a.drawn || 0;
+    const drawnB = b.drawn || 0;
+    if (drawnA !== drawnB) return drawnB - drawnA;
     const diffA = a.pointsDiff || 0;
     const diffB = b.pointsDiff || 0;
     if (diffA !== diffB) return diffB - diffA;
@@ -134,7 +144,7 @@ export default function Standings({ tournamentId, user, guestSession, onNavigate
           {guestSession && (
             <button
               className="back-btn"
-              onClick={() => onNavigate('matches', { tournamentId })}
+              onClick={() => onNavigate('matches', { tournamentId, divisionId: selectedDivisionId })}
               style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}
             >
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -212,6 +222,7 @@ export default function Standings({ tournamentId, user, guestSession, onNavigate
                     <th>Participant</th>
                     <th style={{ textAlign: 'center' }}>Played</th>
                     <th style={{ textAlign: 'center' }}>Won</th>
+                    <th style={{ textAlign: 'center' }}>Drawn</th>
                     <th style={{ textAlign: 'center' }}>Lost</th>
                     <th style={{ textAlign: 'center' }}>Points For</th>
                     <th style={{ textAlign: 'center' }}>Points Against</th>
@@ -235,6 +246,7 @@ export default function Standings({ tournamentId, user, guestSession, onNavigate
                         </td>
                         <td style={{ textAlign: 'center', color: 'var(--text-primary)' }}>{p.matchesPlayed || 0}</td>
                         <td style={{ textAlign: 'center', color: 'var(--accent-tennis)', fontWeight: '600' }}>{p.won || 0}</td>
+                        <td style={{ textAlign: 'center', color: '#a78bfa', fontWeight: '600' }}>{p.drawn || 0}</td>
                         <td style={{ textAlign: 'center', color: 'var(--color-error)', fontWeight: '600' }}>{p.lost || 0}</td>
                         <td style={{ textAlign: 'center', color: 'var(--text-primary)' }}>{p.pointsFor || 0}</td>
                         <td style={{ textAlign: 'center', color: 'var(--text-primary)' }}>{p.pointsAgaint || 0}</td>
