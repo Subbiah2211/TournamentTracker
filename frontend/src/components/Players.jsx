@@ -559,7 +559,8 @@ export default function Players({ tournamentId, user, onNavigate }) {
           if (g3Gender !== div.gender) {
             errors.g3Gender = `The selected division is only for ${div.gender}. Please add a ${div.gender} player or choose a matching division`;
           }
-          if (g4Gender !== div.gender) {
+          const hasP4 = g4FirstName.trim() !== '' || g4LastName.trim() !== '' || g4Email.trim() !== '' || g4Phone.trim() !== '';
+          if (hasP4 && g4Gender !== div.gender) {
             errors.g4Gender = `The selected division is only for ${div.gender}. Please add a ${div.gender} player or choose a matching division`;
           }
         }
@@ -587,7 +588,11 @@ export default function Players({ tournamentId, user, onNavigate }) {
     validatePlayer(1, g1FirstName, g1LastName, g1Email);
     validatePlayer(2, g2FirstName, g2LastName, g2Email);
     validatePlayer(3, g3FirstName, g3LastName, g3Email);
-    validatePlayer(4, g4FirstName, g4LastName, g4Email);
+
+    const hasP4 = g4FirstName.trim() !== '' || g4LastName.trim() !== '' || g4Email.trim() !== '' || g4Phone.trim() !== '';
+    if (hasP4) {
+      validatePlayer(4, g4FirstName, g4LastName, g4Email);
+    }
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
@@ -715,48 +720,53 @@ export default function Players({ tournamentId, user, onNavigate }) {
     }
 
     setFormLoading(true);
+    const playersList = [
+      {
+        firstName: g1FirstName.trim(),
+        lastName: g1LastName.trim(),
+        email: g1Email.trim(),
+        phone: g1Phone.trim() || null,
+        gender: g1Gender || null,
+        age: g1Age ? g1Age.toString() : null,
+        skillLevel: g1SkillLevel
+      },
+      {
+        firstName: g2FirstName.trim(),
+        lastName: g2LastName.trim(),
+        email: g2Email.trim(),
+        phone: g2Phone.trim() || null,
+        gender: g2Gender || null,
+        age: g2Age ? g2Age.toString() : null,
+        skillLevel: g2SkillLevel
+      },
+      {
+        firstName: g3FirstName.trim(),
+        lastName: g3LastName.trim(),
+        email: g3Email.trim(),
+        phone: g3Phone.trim() || null,
+        gender: g3Gender || null,
+        age: g3Age ? g3Age.toString() : null,
+        skillLevel: g3SkillLevel
+      }
+    ];
+
+    if (g4FirstName.trim() || g4LastName.trim() || g4Email.trim()) {
+      playersList.push({
+        firstName: g4FirstName.trim(),
+        lastName: g4LastName.trim(),
+        email: g4Email.trim(),
+        phone: g4Phone.trim() || null,
+        gender: g4Gender || null,
+        age: g4Age ? g4Age.toString() : null,
+        skillLevel: g4SkillLevel
+      });
+    }
+
     const payload = {
       divisionId: parseInt(divisionId),
       groupId: groupId ? parseInt(groupId) : null,
       teamName: genericTeamName.trim(),
-      players: [
-        {
-          firstName: g1FirstName.trim(),
-          lastName: g1LastName.trim(),
-          email: g1Email.trim(),
-          phone: g1Phone.trim() || null,
-          gender: g1Gender || null,
-          age: g1Age ? g1Age.toString() : null,
-          skillLevel: g1SkillLevel
-        },
-        {
-          firstName: g2FirstName.trim(),
-          lastName: g2LastName.trim(),
-          email: g2Email.trim(),
-          phone: g2Phone.trim() || null,
-          gender: g2Gender || null,
-          age: g2Age ? g2Age.toString() : null,
-          skillLevel: g2SkillLevel
-        },
-        {
-          firstName: g3FirstName.trim(),
-          lastName: g3LastName.trim(),
-          email: g3Email.trim(),
-          phone: g3Phone.trim() || null,
-          gender: g3Gender || null,
-          age: g3Age ? g3Age.toString() : null,
-          skillLevel: g3SkillLevel
-        },
-        {
-          firstName: g4FirstName.trim(),
-          lastName: g4LastName.trim(),
-          email: g4Email.trim(),
-          phone: g4Phone.trim() || null,
-          gender: g4Gender || null,
-          age: g4Age ? g4Age.toString() : null,
-          skillLevel: g4SkillLevel
-        }
-      ]
+      players: playersList
     };
 
     try {
@@ -1083,48 +1093,53 @@ export default function Players({ tournamentId, user, onNavigate }) {
     }
 
     setFormLoading(true);
+    const playersList = [
+      {
+        firstName: g1FirstName.trim(),
+        lastName: g1LastName.trim(),
+        email: g1Email.trim(),
+        phone: g1Phone.trim() || null,
+        gender: g1Gender || null,
+        age: g1Age ? g1Age.toString() : null,
+        skillLevel: g1SkillLevel
+      },
+      {
+        firstName: g2FirstName.trim(),
+        lastName: g2LastName.trim(),
+        email: g2Email.trim(),
+        phone: g2Phone.trim() || null,
+        gender: g2Gender || null,
+        age: g2Age ? g2Age.toString() : null,
+        skillLevel: g2SkillLevel
+      },
+      {
+        firstName: g3FirstName.trim(),
+        lastName: g3LastName.trim(),
+        email: g3Email.trim(),
+        phone: g3Phone.trim() || null,
+        gender: g3Gender || null,
+        age: g3Age ? g3Age.toString() : null,
+        skillLevel: g3SkillLevel
+      }
+    ];
+
+    if (g4FirstName.trim() || g4LastName.trim() || g4Email.trim()) {
+      playersList.push({
+        firstName: g4FirstName.trim(),
+        lastName: g4LastName.trim(),
+        email: g4Email.trim(),
+        phone: g4Phone.trim() || null,
+        gender: g4Gender || null,
+        age: g4Age ? g4Age.toString() : null,
+        skillLevel: g4SkillLevel
+      });
+    }
+
     const payload = {
       divisionId: parseInt(divisionId),
       groupId: groupId ? parseInt(groupId) : null,
       teamName: genericTeamName.trim(),
-      players: [
-        {
-          firstName: g1FirstName.trim(),
-          lastName: g1LastName.trim(),
-          email: g1Email.trim(),
-          phone: g1Phone.trim() || null,
-          gender: g1Gender || null,
-          age: g1Age ? g1Age.toString() : null,
-          skillLevel: g1SkillLevel
-        },
-        {
-          firstName: g2FirstName.trim(),
-          lastName: g2LastName.trim(),
-          email: g2Email.trim(),
-          phone: g2Phone.trim() || null,
-          gender: g2Gender || null,
-          age: g2Age ? g2Age.toString() : null,
-          skillLevel: g2SkillLevel
-        },
-        {
-          firstName: g3FirstName.trim(),
-          lastName: g3LastName.trim(),
-          email: g3Email.trim(),
-          phone: g3Phone.trim() || null,
-          gender: g3Gender || null,
-          age: g3Age ? g3Age.toString() : null,
-          skillLevel: g3SkillLevel
-        },
-        {
-          firstName: g4FirstName.trim(),
-          lastName: g4LastName.trim(),
-          email: g4Email.trim(),
-          phone: g4Phone.trim() || null,
-          gender: g4Gender || null,
-          age: g4Age ? g4Age.toString() : null,
-          skillLevel: g4SkillLevel
-        }
-      ]
+      players: playersList
     };
 
     try {
@@ -2155,7 +2170,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
           <div className="form-card">
             <header className="form-header-section">
               <h1 className="form-title">{subView === 'edit-generic' ? 'Edit Team Details' : 'Add Team'}</h1>
-              <p className="form-subtitle">{subView === 'edit-generic' ? 'Modify 4-player team and player details.' : 'Register a new 4-player team and their players.'}</p>
+              <p className="form-subtitle">{subView === 'edit-generic' ? 'Modify team (3 or 4 players) and player details.' : 'Register a new team (3 or 4 players) and their players.'}</p>
             </header>
 
             {formError && (
@@ -2299,7 +2314,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
 
                   <div className="form-row">
                     <div className="form-group flex-1">
-                      <label htmlFor={`g${p.num}FirstName`} className="form-label">First Name <span className="required-star">*</span></label>
+                      <label htmlFor={`g${p.num}FirstName`} className="form-label">First Name {p.num !== 4 && <span className="required-star">*</span>}</label>
                       <input
                         id={`g${p.num}FirstName`}
                         type="text"
@@ -2308,12 +2323,12 @@ export default function Players({ tournamentId, user, onNavigate }) {
                         placeholder="First Name"
                         className={`form-input ${validationErrors[`g${p.num}FirstName`] ? 'error' : ''}`}
                         disabled={formLoading}
-                        required
+                        required={p.num !== 4}
                       />
                       {validationErrors[`g${p.num}FirstName`] && <span className="error-text">{validationErrors[`g${p.num}FirstName`]}</span>}
                     </div>
                     <div className="form-group flex-1">
-                      <label htmlFor={`g${p.num}LastName`} className="form-label">Last Name <span className="required-star">*</span></label>
+                      <label htmlFor={`g${p.num}LastName`} className="form-label">Last Name {p.num !== 4 && <span className="required-star">*</span>}</label>
                       <input
                         id={`g${p.num}LastName`}
                         type="text"
@@ -2322,7 +2337,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
                         placeholder="Last Name"
                         className={`form-input ${validationErrors[`g${p.num}LastName`] ? 'error' : ''}`}
                         disabled={formLoading}
-                        required
+                        required={p.num !== 4}
                       />
                       {validationErrors[`g${p.num}LastName`] && <span className="error-text">{validationErrors[`g${p.num}LastName`]}</span>}
                     </div>
@@ -2330,7 +2345,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
 
                   <div className="form-row">
                     <div className="form-group flex-1">
-                      <label htmlFor={`g${p.num}Email`} className="form-label">Email Address <span className="required-star">*</span></label>
+                      <label htmlFor={`g${p.num}Email`} className="form-label">Email Address {p.num !== 4 && <span className="required-star">*</span>}</label>
                       <input
                         id={`g${p.num}Email`}
                         type="email"
@@ -2339,7 +2354,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
                         placeholder="name@example.com"
                         className={`form-input ${validationErrors[`g${p.num}Email`] ? 'error' : ''}`}
                         disabled={formLoading}
-                        required
+                        required={p.num !== 4}
                       />
                       {validationErrors[`g${p.num}Email`] && <span className="error-text">{validationErrors[`g${p.num}Email`]}</span>}
                     </div>
@@ -2388,14 +2403,14 @@ export default function Players({ tournamentId, user, onNavigate }) {
                       />
                     </div>
                     <div className="form-group flex-1">
-                      <label htmlFor={`g${p.num}Skill`} className="form-label">Skill Level <span className="required-star">*</span></label>
+                      <label htmlFor={`g${p.num}Skill`} className="form-label">Skill Level {p.num !== 4 && <span className="required-star">*</span>}</label>
                       <select
                         id={`g${p.num}Skill`}
                         value={p.skill}
                         onChange={(e) => p.setSkill(e.target.value)}
                         className="form-input form-select"
                         disabled={formLoading}
-                        required
+                        required={p.num !== 4}
                       >
                         <option value="1.0">1.0</option>
                         <option value="1.5">1.5</option>

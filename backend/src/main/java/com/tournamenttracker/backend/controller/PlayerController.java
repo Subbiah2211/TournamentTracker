@@ -319,13 +319,13 @@ public class PlayerController {
         // 1. Validation of mandatory fields
         if (request.getDivisionId() == null ||
             request.getTeamName() == null || request.getTeamName().trim().isEmpty() ||
-            request.getPlayers() == null || request.getPlayers().size() != 4) {
+            request.getPlayers() == null || request.getPlayers().size() < 3 || request.getPlayers().size() > 4) {
             response.put("success", false);
             response.put("message", "Mandatory fields are missing");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
 
-        // Validate each of the 4 players
+        // Validate each of the provided players (3 or 4)
         for (DoublesPlayerRequest pReq : request.getPlayers()) {
             if (pReq.getFirstName() == null || pReq.getFirstName().trim().isEmpty() ||
                 pReq.getLastName() == null || pReq.getLastName().trim().isEmpty() ||
@@ -410,10 +410,21 @@ public class PlayerController {
         Map<String, Object> response = new HashMap<>();
 
         if (request.getTeamName() == null || request.getTeamName().trim().isEmpty() ||
-            request.getPlayers() == null || request.getPlayers().size() != 4) {
+            request.getPlayers() == null || request.getPlayers().size() < 3 || request.getPlayers().size() > 4) {
             response.put("success", false);
             response.put("message", "Mandatory fields are missing");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        }
+
+        // Validate each of the provided players (3 or 4)
+        for (DoublesPlayerRequest pReq : request.getPlayers()) {
+            if (pReq.getFirstName() == null || pReq.getFirstName().trim().isEmpty() ||
+                pReq.getLastName() == null || pReq.getLastName().trim().isEmpty() ||
+                pReq.getEmail() == null || pReq.getEmail().trim().isEmpty()) {
+                response.put("success", false);
+                response.put("message", "Player details are incomplete");
+                return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+            }
         }
 
         String teamName = request.getTeamName().trim();

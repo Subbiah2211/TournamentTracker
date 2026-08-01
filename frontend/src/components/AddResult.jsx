@@ -618,44 +618,60 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     );
   }
 
-  const renderTeamSetCard = (setNum, setP1At11, setSetP1At11, setP2At11, setSetP2At11, setP1, setSetP1, setP2, setSetP2, p1Players, p2Players) => {
-    // Determine player rotation designations based on setNum
-    let firstHalfPairs1 = "";
-    let firstHalfPairs2 = "";
-    let secondHalfPairs1 = "";
-    let secondHalfPairs2 = "";
+  const getTeamPairingsForSet = (players, setNum) => {
+    const getPlayerName = (list, index) =>
+      list && list[index] ? `${list[index].firstName} ${list[index].lastName}` : `Player ${index + 1}`;
 
-    if (p1Players.length >= 4 && p2Players.length >= 4) {
-      const getPlayerName = (list, index) => list[index] ? `${list[index].firstName} ${list[index].lastName}` : `Player ${index + 1}`;
+    const count = players && players.length > 0 ? players.length : 4;
+
+    if (count === 3) {
       if (setNum === 1) {
-        firstHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 3)}`;
-        firstHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 3)}`;
-        secondHalfPairs1 = `${getPlayerName(p1Players, 1)} / ${getPlayerName(p1Players, 2)}`;
-        secondHalfPairs2 = `${getPlayerName(p2Players, 1)} / ${getPlayerName(p2Players, 2)}`;
+        return {
+          firstHalf: `${getPlayerName(players, 0)} / ${getPlayerName(players, 2)}`,
+          secondHalf: `${getPlayerName(players, 1)} / ${getPlayerName(players, 2)}`
+        };
       } else if (setNum === 2) {
-        firstHalfPairs1 = `${getPlayerName(p1Players, 1)} / ${getPlayerName(p1Players, 3)}`;
-        firstHalfPairs2 = `${getPlayerName(p2Players, 1)} / ${getPlayerName(p2Players, 3)}`;
-        secondHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 2)}`;
-        secondHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 2)}`;
+        return {
+          firstHalf: `${getPlayerName(players, 0)} / ${getPlayerName(players, 1)}`,
+          secondHalf: `${getPlayerName(players, 0)} / ${getPlayerName(players, 2)}`
+        };
       } else if (setNum === 3) {
-        firstHalfPairs1 = `${getPlayerName(p1Players, 2)} / ${getPlayerName(p1Players, 3)}`;
-        firstHalfPairs2 = `${getPlayerName(p2Players, 2)} / ${getPlayerName(p2Players, 3)}`;
-        secondHalfPairs1 = `${getPlayerName(p1Players, 0)} / ${getPlayerName(p1Players, 1)}`;
-        secondHalfPairs2 = `${getPlayerName(p2Players, 0)} / ${getPlayerName(p2Players, 1)}`;
+        return {
+          firstHalf: `${getPlayerName(players, 2)} / ${getPlayerName(players, 1)}`,
+          secondHalf: `${getPlayerName(players, 0)} / ${getPlayerName(players, 1)}`
+        };
       }
     } else {
-      // Fallback description if players list not loaded
+      // 4-player team or default
       if (setNum === 1) {
-        firstHalfPairs1 = firstHalfPairs2 = "Player 1 & Player 4";
-        secondHalfPairs1 = secondHalfPairs2 = "Player 2 & Player 3";
+        return {
+          firstHalf: `${getPlayerName(players, 0)} / ${getPlayerName(players, 3)}`,
+          secondHalf: `${getPlayerName(players, 1)} / ${getPlayerName(players, 2)}`
+        };
       } else if (setNum === 2) {
-        firstHalfPairs1 = firstHalfPairs2 = "Player 2 & Player 4";
-        secondHalfPairs1 = secondHalfPairs2 = "Player 1 & Player 3";
+        return {
+          firstHalf: `${getPlayerName(players, 1)} / ${getPlayerName(players, 3)}`,
+          secondHalf: `${getPlayerName(players, 0)} / ${getPlayerName(players, 2)}`
+        };
       } else if (setNum === 3) {
-        firstHalfPairs1 = firstHalfPairs2 = "Player 3 & Player 4";
-        secondHalfPairs1 = secondHalfPairs2 = "Player 1 & Player 2";
+        return {
+          firstHalf: `${getPlayerName(players, 2)} / ${getPlayerName(players, 3)}`,
+          secondHalf: `${getPlayerName(players, 0)} / ${getPlayerName(players, 1)}`
+        };
       }
     }
+    return { firstHalf: '', secondHalf: '' };
+  };
+
+  const renderTeamSetCard = (setNum, setP1At11, setSetP1At11, setP2At11, setSetP2At11, setP1, setSetP1, setP2, setSetP2, p1Players, p2Players) => {
+    // Determine player rotation designations based on setNum and each team's roster size
+    const pair1 = getTeamPairingsForSet(p1Players, setNum);
+    const pair2 = getTeamPairingsForSet(p2Players, setNum);
+
+    const firstHalfPairs1 = pair1.firstHalf;
+    const firstHalfPairs2 = pair2.firstHalf;
+    const secondHalfPairs1 = pair1.secondHalf;
+    const secondHalfPairs2 = pair2.secondHalf;
 
     return (
       <div className="team-set-card" style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
