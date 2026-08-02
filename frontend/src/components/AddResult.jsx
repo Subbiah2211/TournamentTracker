@@ -47,6 +47,10 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   const [formError, setFormError] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
   const [hasExistingResult, setHasExistingResult] = useState(false);
+  const [existingP1Status, setExistingP1Status] = useState(null);
+  const [savedSets, setSavedSets] = useState({ 1: false, 2: false, 3: false, 4: false });
+  const [savingSet, setSavingSet] = useState(null);
+  const [setSuccessToast, setSetSuccessToast] = useState('');
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
 
@@ -55,6 +59,9 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   const [forfeitingParticipantId, setForfeitingParticipantId] = useState('');
 
   const [participants, setParticipants] = useState([]);
+
+  const currentDivision = divisions.find(d => String(d.id) === String(selectedDivisionId));
+  const isMatchCompleted = hasExistingResult && existingP1Status !== null;
 
   // Fetch participants when selectedDivisionId changes
   useEffect(() => {
@@ -235,6 +242,13 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           setSet3P1At11(resData.set3P1At11 !== null ? String(resData.set3P1At11) : '');
           setSet3P2At11(resData.set3P2At11 !== null ? String(resData.set3P2At11) : '');
           setResultType(resData.resultType || 'Normal');
+          setExistingP1Status(resData.p1Status || null);
+          setSavedSets({
+            1: resData.set1P1 !== null && resData.set1P2 !== null,
+            2: resData.set2P1 !== null && resData.set2P2 !== null,
+            3: resData.set3P1 !== null && resData.set3P2 !== null,
+            4: resData.set4P1 !== null && resData.set4P2 !== null
+          });
           // For Forfeit: figure out which participant forfeited (the Lost one)
           if (resData.resultType === 'Forfeit' && resData.p2Status === 'Lost') {
             setForfeitingParticipantId(String(matchDetails?.participant2 || ''));
@@ -312,6 +326,8 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     setTeamPlayers1([]);
     setTeamPlayers2([]);
     setHasExistingResult(false);
+    setExistingP1Status(null);
+    setSavedSets({ 1: false, 2: false, 3: false, 4: false });
     setResultType('Normal');
     setForfeitingParticipantId('');
   };
@@ -417,6 +433,149 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
 
     setValidationErrors(errors);
     return Object.keys(errors).length === 0;
+  };
+
+  const handleSaveSet = async (setNum) => {
+    setFormError('');
+    setSetSuccessToast('');
+    const errors = {};
+    const isTeam = currentDivision?.divisionType === 'Team';
+
+    const validateSingleSet = (setP1, setP2, setP1At11, setP2At11, setLabel) => {
+      if (setP1 === '' || setP2 === '') {
+        return `${setLabel} scores are required to save this set`;
+      }
+      const val1 = parseInt(setP1);
+      const val2 = parseInt(setP2);
+      if (isNaN(val1) || isNaN(val2) || val1 < 0 || val2 < 0) {
+        return `${setLabel} scores must be positive numbers`;
+      }
+      if (val1 === val2) {
+        return `${setLabel} cannot be a tie`;
+      }
+      if (isTeam) {
+        if (setP1At11 === '' || setP2At11 === '') {
+          return `${setLabel} 11-point mark scores are required`;
+        }
+        const at11Val1 = parseInt(setP1At11);
+        const at11Val2 = parseInt(setP2At11);
+        if (isNaN(at11Val1) || isNaN(at11Val2) || at11Val1 < 0 || at11Val2 < 0) {
+          return `${setLabel} 11-point mark scores must be positive numbers`;
+        }
+        if (!((at11Val1 === 11 && at11Val2 < 11) || (at11Val2 === 11 && at11Val1 < 11))) {
+          return 'One team must score exactly 11 points at the transition mark, and the other must score less than 11';
+        }
+        if (val1 < at11Val1 || val2 < at11Val2) {
+          return 'Final scores must be greater than or equal to 11-point mark scores';
+        }
+      }
+      return null;
+    };
+
+    if (setNum === 1) {
+      const err = validateSingleSet(set1P1, set1P2, set1P1At11, set1P2At11, 'Set 1');
+      if (err) errors.set1 = err;
+    } else if (setNum === 2) {
+      const err1 = validateSingleSet(set1P1, set1P2, set1P1At11, set1P2At11, 'Set 1');
+      if (err1) errors.set1 = err1;
+      const err2 = validateSingleSet(set2P1, set2P2, set2P1At11, set2P2At11, 'Set 2');
+      if (err2) errors.set2 = err2;
+    } else if (setNum === 3) {
+      const err1 = validateSingleSet(set1P1, set1P2, set1P1At11, set1P2At11, 'Set 1');
+      if (err1) errors.set1 = err1;
+      const err2 = validateSingleSet(set2P1, set2P2, set2P1At11, set2P2At11, 'Set 2');
+      if (err2) errors.set2 = err2;
+      const err3 = validateSingleSet(set3P1, set3P2, set3P1At11, set3P2At11, 'Set 3');
+      if (err3) errors.set3 = err3;
+    } else if (setNum === 4) {
+      const err1 = validateSingleSet(set1P1, set1P2, set1P1At11, set1P2At11, 'Set 1');
+      if (err1) errors.set1 = err1;
+      const err2 = validateSingleSet(set2P1, set2P2, set2P1At11, set2P2At11, 'Set 2');
+      if (err2) errors.set2 = err2;
+      const err3 = validateSingleSet(set3P1, set3P2, set3P1At11, set3P2At11, 'Set 3');
+      if (err3) errors.set3 = err3;
+      if (set4P1 === '' || set4P2 === '') {
+        errors.set4 = 'Set 4 scores are required to save this set';
+      } else {
+        const val1 = parseInt(set4P1);
+        const val2 = parseInt(set4P2);
+        if (isNaN(val1) || isNaN(val2) || val1 < 0 || val2 < 0) {
+          errors.set4 = 'Set 4 scores must be positive numbers';
+        } else if (val1 === val2) {
+          errors.set4 = 'Set 4 cannot be a tie';
+        }
+      }
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      return;
+    }
+    setValidationErrors({});
+    setSavingSet(setNum);
+
+    try {
+      // 1. Update Match Details
+      const matchPayload = {
+        matchDate: matchDate || null,
+        startTime: startTime || null,
+        endTime: endTime || null,
+        round: round ? parseInt(round) : null,
+        courtId: courtId ? parseInt(courtId) : null
+      };
+
+      const matchResp = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(matchPayload)
+      });
+      if (!matchResp.ok) {
+        throw new Error('Failed to update match details.');
+      }
+
+      // 2. Save partial result
+      const resultPayload = {
+        matchId: parseInt(selectedMatchId),
+        set1P1: set1P1 !== '' ? parseInt(set1P1) : null,
+        set1P2: set1P2 !== '' ? parseInt(set1P2) : null,
+        set2P1: set2P1 !== '' ? parseInt(set2P1) : null,
+        set2P2: set2P2 !== '' ? parseInt(set2P2) : null,
+        set3P1: set3P1 !== '' ? parseInt(set3P1) : null,
+        set3P2: set3P2 !== '' ? parseInt(set3P2) : null,
+        set4P1: set4P1 !== '' ? parseInt(set4P1) : null,
+        set4P2: set4P2 !== '' ? parseInt(set4P2) : null,
+        set1P1At11: set1P1At11 !== '' ? parseInt(set1P1At11) : null,
+        set1P2At11: set1P2At11 !== '' ? parseInt(set1P2At11) : null,
+        set2P1At11: set2P1At11 !== '' ? parseInt(set2P1At11) : null,
+        set2P2At11: set2P2At11 !== '' ? parseInt(set2P2At11) : null,
+        set3P1At11: set3P1At11 !== '' ? parseInt(set3P1At11) : null,
+        set3P2At11: set3P2At11 !== '' ? parseInt(set3P2At11) : null,
+        lastEditedByPlayerId: guestSession ? guestSession.playerId : (user?.playerId || null),
+        resultType: 'Normal',
+        isPartial: true
+      };
+
+      const resResp = await fetch(`${API_BASE_URL}/api/results`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(resultPayload)
+      });
+
+      if (!resResp.ok) {
+        const errData = await resResp.json();
+        throw new Error(errData.error || `Failed to save Set ${setNum} score.`);
+      }
+
+      setHasExistingResult(true);
+      setSavedSets(prev => ({ ...prev, [setNum]: true }));
+      setSetSuccessToast(`Set ${setNum} score saved successfully!`);
+      setTimeout(() => setSetSuccessToast(''), 4000);
+    } catch (err) {
+      console.error(err);
+      setFormError(err.message || 'Failed to save set score.');
+    } finally {
+      setSavingSet(null);
+    }
   };
 
   const handleFormSubmit = async (e) => {
@@ -776,11 +935,48 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
             </div>
           </div>
         </div>
+
+        {/* Save Set Score Button for this set (hidden if match is already completed) */}
+        {!isMatchCompleted && (
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1.25rem', alignItems: 'center', gap: '0.75rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '0.75rem' }}>
+            {savedSets[setNum] && (
+              <span style={{ fontSize: '0.8rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                Set {setNum} Saved
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => handleSaveSet(setNum)}
+              disabled={formLoading || savingSet !== null}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: '6px',
+                padding: '0.45rem 1rem', borderRadius: '10px', fontSize: '0.85rem',
+                fontWeight: '600', cursor: (formLoading || savingSet !== null) ? 'not-allowed' : 'pointer',
+                border: '1px solid var(--primary)',
+                background: 'rgba(59, 130, 246, 0.12)', color: 'var(--primary)',
+                transition: 'all 0.2s'
+              }}
+              onMouseEnter={e => { if (!formLoading && savingSet === null) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.22)'; }}
+              onMouseLeave={e => { if (!formLoading && savingSet === null) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.12)'; }}
+            >
+              {savingSet === setNum ? (
+                <>
+                  <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px', marginRight: '4px' }} />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  Save Set {setNum} Score
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </div>
     );
   };
-
-  const currentDivision = divisions.find(d => String(d.id) === String(selectedDivisionId));
 
   return (
     <div className="matches-page-container" style={{ maxWidth: '800px' }}>
@@ -864,6 +1060,12 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
       </header>
 
       <div className="form-card" style={{ background: 'var(--glass-bg)', border: '1px solid var(--glass-border)', borderRadius: '24px', padding: '2rem' }}>
+        {setSuccessToast && (
+          <div className="status-toast success" style={{ marginBottom: '1.5rem', marginTop: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            <span>{setSuccessToast}</span>
+          </div>
+        )}
         {formError && (
           <div className="status-toast error" style={{ marginBottom: '1.5rem', marginTop: 0 }}>
             <span>{formError}</span>
@@ -1232,6 +1434,43 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                     </div>
                   </div>
 
+                  {/* Per-Set Save Controls for Singles/Doubles (hidden if match is already completed) */}
+                  {!isMatchCompleted && (
+                    <div style={{ display: 'grid', gridTemplateColumns: '2.5fr 1fr 1fr 1fr', gap: '1rem', alignItems: 'center', marginTop: '0.75rem', marginBottom: '1rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '0.75rem' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic' }}>
+                        Save progress per set:
+                      </div>
+                      {[1, 2, 3].map((sNum) => (
+                        <div key={sNum} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px' }}>
+                          <button
+                            type="button"
+                            onClick={() => handleSaveSet(sNum)}
+                            disabled={formLoading || savingSet !== null}
+                            style={{
+                              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px',
+                              padding: '0.4rem 0.5rem', borderRadius: '8px', fontSize: '0.78rem',
+                              fontWeight: '600', cursor: (formLoading || savingSet !== null) ? 'not-allowed' : 'pointer',
+                              border: '1px solid var(--primary)',
+                              background: 'rgba(59, 130, 246, 0.12)', color: 'var(--primary)',
+                              transition: 'all 0.2s'
+                            }}
+                          >
+                            {savingSet === sNum ? (
+                              <div className="spinner" style={{ width: '10px', height: '10px', borderWidth: '2px' }} />
+                            ) : (
+                              `Save Set ${sNum}`
+                            )}
+                          </button>
+                          {savedSets[sNum] && (
+                            <span style={{ fontSize: '0.72rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: '2px', fontWeight: '500' }}>
+                              ✓ Saved
+                            </span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
                   {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
                   {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
                   {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
@@ -1278,6 +1517,44 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                       />
                     </div>
                   </div>
+                  
+                  {/* Save Set 4 Score Button (hidden if match is already completed) */}
+                  {!isMatchCompleted && (
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '1rem', alignItems: 'center', gap: '0.75rem', borderTop: '1px solid rgba(255, 255, 255, 0.06)', paddingTop: '0.75rem' }}>
+                      {savedSets[4] && (
+                        <span style={{ fontSize: '0.8rem', color: '#4ade80', display: 'flex', alignItems: 'center', gap: '4px', fontWeight: '500' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                          Set 4 Saved
+                        </span>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => handleSaveSet(4)}
+                        disabled={formLoading || savingSet !== null}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '6px',
+                          padding: '0.45rem 1rem', borderRadius: '10px', fontSize: '0.85rem',
+                          fontWeight: '600', cursor: (formLoading || savingSet !== null) ? 'not-allowed' : 'pointer',
+                          border: '1px solid var(--primary)',
+                          background: 'rgba(59, 130, 246, 0.12)', color: 'var(--primary)',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {savingSet === 4 ? (
+                          <>
+                            <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px', marginRight: '4px' }} />
+                            Saving...
+                          </>
+                        ) : (
+                          <>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                            Save Set 4 Score
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   <div style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: 'var(--text-secondary)', textAlign: 'center' }}>
                     {currentDivision?.numSets === 4 && (
                       <span>2-2 tie = <strong>Draw</strong> · 3-1 or 4-0 = outright win</span>
@@ -1301,7 +1578,11 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                 disabled={formLoading}
                 style={{ marginTop: 0, flex: 1, minHeight: '48px' }}
               >
-                {formLoading ? <div className="spinner" aria-label="Saving" /> : 'Save Changes'}
+                {formLoading ? (
+                  <div className="spinner" aria-label="Saving" />
+                ) : (
+                  isMatchCompleted ? 'Update Scores / Details' : 'Submit All Scores / Details'
+                )}
               </button>
             </div>
           </div>

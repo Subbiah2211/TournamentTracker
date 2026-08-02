@@ -236,6 +236,50 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
     return roundText || courtText;
   };
 
+  const renderMatchScoreLine = (m) => {
+    if (m.p1Status || m.p2Status) {
+      return (
+        <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600' }}>
+          {m.resultType === 'Cancelled' ? (
+            <span style={{ color: 'var(--text-secondary)', background: 'rgba(148,163,184,0.12)', padding: '2px 10px', borderRadius: '8px', fontWeight: '500', fontSize: '0.8rem' }}>Match Cancelled — Draw</span>
+          ) : m.resultType === 'Forfeit' ? (
+            <span style={{ color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem' }}>
+              {m.p1Status === 'Won' ? m.participant1Name : m.participant2Name} won by forfeit
+            </span>
+          ) : m.p1Status === 'Draw' ? (
+            <span style={{ color: 'var(--accent-pickleball)' }}>Match Drawn</span>
+          ) : m.p1Status === 'Won' ? (
+            <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant1Name} Won</span>
+          ) : m.p2Status === 'Won' ? (
+            <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant2Name} Won</span>
+          ) : null}
+        </div>
+      );
+    }
+    if (m.set1P1 !== null && m.set1P1 !== undefined) {
+      const setsStr = [
+        m.set1P1 !== null && m.set1P2 !== null ? `S1: ${m.set1P1}-${m.set1P2}` : null,
+        m.set2P1 !== null && m.set2P2 !== null ? `S2: ${m.set2P1}-${m.set2P2}` : null,
+        m.set3P1 !== null && m.set3P2 !== null ? `S3: ${m.set3P1}-${m.set3P2}` : null,
+        m.set4P1 !== null && m.set4P2 !== null ? `S4: ${m.set4P1}-${m.set4P2}` : null,
+      ].filter(Boolean).join(' | ');
+
+      return (
+        <div className="match-card-line3" style={{ fontSize: '0.875rem', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+          <span style={{ color: '#38bdf8', background: 'rgba(56, 189, 248, 0.12)', border: '1px solid rgba(56, 189, 248, 0.25)', padding: '2px 8px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '600' }}>
+            In Progress
+          </span>
+          {setsStr && (
+            <span style={{ color: 'var(--text-secondary)', fontSize: '0.825rem' }}>
+              {setsStr}
+            </span>
+          )}
+        </div>
+      );
+    }
+    return null;
+  };
+
   // Extract distinct rounds from the full matches list
   const availableRounds = [...new Set(matches.map(m => m.round).filter(Boolean))].sort((a, b) => a - b);
 
@@ -731,23 +775,7 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                                 {m.matchDate} {m.startTime ? `@ ${m.startTime}` : ''}
                               </div>
                             )}
-                            {(m.p1Status || m.p2Status) && (
-                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600' }}>
-                                {m.resultType === 'Cancelled' ? (
-                                  <span style={{ color: 'var(--text-secondary)', background: 'rgba(148,163,184,0.12)', padding: '2px 10px', borderRadius: '8px', fontWeight: '500', fontSize: '0.8rem' }}>Match Cancelled — Draw</span>
-                                ) : m.resultType === 'Forfeit' ? (
-                                  <span style={{ color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem' }}>
-                                    {m.p1Status === 'Won' ? m.participant1Name : m.participant2Name} won by forfeit
-                                  </span>
-                                ) : m.p1Status === 'Draw' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>Match Drawn</span>
-                                ) : m.p1Status === 'Won' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant1Name} Won</span>
-                                ) : m.p2Status === 'Won' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant2Name} Won</span>
-                                ) : null}
-                              </div>
-                            )}
+                            {renderMatchScoreLine(m)}
                           </div>
                         ))}
                       </div>
@@ -796,23 +824,7 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                                 {m.matchDate} {m.startTime ? `@ ${m.startTime}` : ''}
                               </div>
                             )}
-                            {(m.p1Status || m.p2Status) && (
-                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600' }}>
-                                {m.resultType === 'Cancelled' ? (
-                                  <span style={{ color: 'var(--text-secondary)', background: 'rgba(148,163,184,0.12)', padding: '2px 10px', borderRadius: '8px', fontWeight: '500', fontSize: '0.8rem' }}>Match Cancelled — Draw</span>
-                                ) : m.resultType === 'Forfeit' ? (
-                                  <span style={{ color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem' }}>
-                                    {m.p1Status === 'Won' ? m.participant1Name : m.participant2Name} won by forfeit
-                                  </span>
-                                ) : m.p1Status === 'Draw' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>Match Drawn</span>
-                                ) : m.p1Status === 'Won' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant1Name} Won</span>
-                                ) : m.p2Status === 'Won' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant2Name} Won</span>
-                                ) : null}
-                              </div>
-                            )}
+                            {renderMatchScoreLine(m)}
                           </div>
                         ))}
 
@@ -870,23 +882,7 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                                 {m.matchDate} {m.startTime ? `@ ${m.startTime}` : ''}
                               </div>
                             )}
-                            {(m.p1Status || m.p2Status) && (
-                              <div className="match-card-line3" style={{ fontSize: '0.875rem', fontWeight: '600' }}>
-                                {m.resultType === 'Cancelled' ? (
-                                  <span style={{ color: 'var(--text-secondary)', background: 'rgba(148,163,184,0.12)', padding: '2px 10px', borderRadius: '8px', fontWeight: '500', fontSize: '0.8rem' }}>Match Cancelled — Draw</span>
-                                ) : m.resultType === 'Forfeit' ? (
-                                  <span style={{ color: '#fb923c', background: 'rgba(251,146,60,0.1)', padding: '2px 10px', borderRadius: '8px', fontWeight: '600', fontSize: '0.8rem' }}>
-                                    {m.p1Status === 'Won' ? m.participant1Name : m.participant2Name} won by forfeit
-                                  </span>
-                                ) : m.p1Status === 'Draw' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>Match Drawn</span>
-                                ) : m.p1Status === 'Won' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant1Name} Won</span>
-                                ) : m.p2Status === 'Won' ? (
-                                  <span style={{ color: 'var(--accent-pickleball)' }}>{m.participant2Name} Won</span>
-                                ) : null}
-                              </div>
-                            )}
+                            {renderMatchScoreLine(m)}
                           </div>
                         ))}
 

@@ -79,6 +79,17 @@ public class Result {
     @Column(name = "result_type")
     private String resultType;
 
+    @jakarta.persistence.Transient
+    private Boolean isPartial;
+
+    public Boolean getIsPartial() {
+        return isPartial;
+    }
+
+    public void setIsPartial(Boolean isPartial) {
+        this.isPartial = isPartial;
+    }
+
     public Result() {}
 
     public Result(Long matchId, Integer set1P1, Integer set1P2, Integer set2P1, Integer set2P2,
