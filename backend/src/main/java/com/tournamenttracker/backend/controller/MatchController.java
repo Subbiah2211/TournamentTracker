@@ -3,6 +3,7 @@ package com.tournamenttracker.backend.controller;
 import com.tournamenttracker.backend.model.Match;
 import com.tournamenttracker.backend.model.Participant;
 import com.tournamenttracker.backend.model.Result;
+import com.tournamenttracker.backend.model.MatchPlayerOverride;
 import com.tournamenttracker.backend.repository.MatchRepository;
 import com.tournamenttracker.backend.repository.ParticipantRepository;
 import com.tournamenttracker.backend.repository.ResultRepository;
@@ -10,6 +11,7 @@ import com.tournamenttracker.backend.repository.TeamPlayerRepository;
 import com.tournamenttracker.backend.repository.PlayerRepository;
 import com.tournamenttracker.backend.repository.GroupRepository;
 import com.tournamenttracker.backend.repository.DivisionRepository;
+import com.tournamenttracker.backend.repository.MatchPlayerOverrideRepository;
 import com.tournamenttracker.backend.model.Group;
 import com.tournamenttracker.backend.model.Division;
 import com.tournamenttracker.backend.model.TeamPlayer;
@@ -50,6 +52,9 @@ public class MatchController {
 
     @Autowired
     private DivisionRepository divisionRepository;
+
+    @Autowired
+    private MatchPlayerOverrideRepository matchPlayerOverrideRepository;
 
     private String getPlayerNamesForParticipant(Long participantId) {
         if (participantId == null) return "";
@@ -237,6 +242,126 @@ public class MatchController {
         return resultRepository.findByMatchId(matchId)
                 .map(ResponseEntity::ok)
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    // ─── Player Availability Override Endpoints ───────────────────────────────
+
+    /** GET /api/matches/{matchId}/player-overrides — returns all override rows with resolved names. */
+    @GetMapping("/matches/{matchId}/player-overrides")
+    public ResponseEntity<?> getPlayerOverrides(@PathVariable Long matchId) {
+        List<MatchPlayerOverride> overrides = matchPlayerOverrideRepository.findByMatchId(matchId);
+        List<Map<String, Object>> result = overrides.stream().map(o -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", o.getId());
+            m.put("matchId", o.getMatchId());
+            m.put("teamId", o.getTeamId());
+            m.put("slotPosition", o.getSlotPosition());
+            m.put("absentPlayerId", o.getAbsentPlayerId());
+            m.put("subPlayerId", o.getSubPlayerId());
+            if (o.getAbsentPlayerId() != null) {
+                playerRepository.findById(o.getAbsentPlayerId()).ifPresent(p ->
+                    m.put("absentPlayerName", p.getFirstName() + " " + p.getLastName()));
+            }
+            if (o.getSubPlayerId() != null) {
+                playerRepository.findById(o.getSubPlayerId()).ifPresent(p -> {
+                    m.put("subPlayerName", p.getFirstName() + " " + p.getLastName());
+                    m.put("subPlayerSkillLevel", p.getSkillLevel());
+                });
+            }
+            return m;
+        }).collect(Collectors.toList());
+        return ResponseEntity.ok(result);
+    }
+
+    /**
+     * POST /api/matches/{matchId}/player-overrides
+     * Body: { teamId, slots: [ { slotPosition, absentPlayerId, subPlayerId } ] }
+     * Replaces all existing overrides for the given team in this match.
+     * Validates that effective player count stays >= 3.
+     */
+    @Transactional
+    @PostMapping("/matches/{matchId}/player-overrides")
+    public ResponseEntity<?> savePlayerOverrides(
+            @PathVariable Long matchId,
+            @RequestBody Map<String, Object> body) {
+
+        Object teamIdObj = body.get("teamId");
+        if (teamIdObj == null) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "teamId is required");
+            return ResponseEntity.badRequest().body(err);
+        }
+        Long teamId = Long.valueOf(teamIdObj.toString());
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> slots = (List<Map<String, Object>>) body.get("slots");
+        if (slots == null) slots = Collections.emptyList();
+
+        // Determine team roster size
+        List<TeamPlayer> teamPlayers = teamPlayerRepository.findByTeamId(teamId);
+        int rosterSize = teamPlayers.size();
+
+        // Count absent slots without a substitute
+        long absentWithNoSub = slots.stream()
+                .filter(s -> s.get("subPlayerId") == null || s.get("subPlayerId").toString().isBlank())
+                .count();
+        int effectiveCount = rosterSize - (int) absentWithNoSub;
+
+        if (effectiveCount < 3) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "Cannot proceed — at least 3 effective players are required. " +
+                    "Current effective count: " + effectiveCount);
+            return ResponseEntity.badRequest().body(err);
+        }
+
+        // Remove existing overrides for this team+match
+        matchPlayerOverrideRepository.deleteByMatchIdAndTeamId(matchId, teamId);
+
+        // Insert new overrides (only absent slots)
+        List<Map<String, Object>> savedRows = new ArrayList<>();
+        for (Map<String, Object> slot : slots) {
+            MatchPlayerOverride override = new MatchPlayerOverride();
+            override.setMatchId(matchId);
+            override.setTeamId(teamId);
+            override.setSlotPosition(Integer.valueOf(slot.get("slotPosition").toString()));
+            if (slot.get("absentPlayerId") != null && !slot.get("absentPlayerId").toString().isBlank()) {
+                override.setAbsentPlayerId(Long.valueOf(slot.get("absentPlayerId").toString()));
+            }
+            if (slot.get("subPlayerId") != null && !slot.get("subPlayerId").toString().isBlank()) {
+                override.setSubPlayerId(Long.valueOf(slot.get("subPlayerId").toString()));
+            }
+            override.setCreatedAt(OffsetDateTime.now());
+            MatchPlayerOverride saved = matchPlayerOverrideRepository.save(override);
+
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", saved.getId());
+            row.put("teamId", saved.getTeamId());
+            row.put("slotPosition", saved.getSlotPosition());
+            row.put("absentPlayerId", saved.getAbsentPlayerId());
+            row.put("subPlayerId", saved.getSubPlayerId());
+            if (saved.getAbsentPlayerId() != null) {
+                playerRepository.findById(saved.getAbsentPlayerId()).ifPresent(p ->
+                    row.put("absentPlayerName", p.getFirstName() + " " + p.getLastName()));
+            }
+            if (saved.getSubPlayerId() != null) {
+                playerRepository.findById(saved.getSubPlayerId()).ifPresent(p -> {
+                    row.put("subPlayerName", p.getFirstName() + " " + p.getLastName());
+                    row.put("subPlayerSkillLevel", p.getSkillLevel());
+                });
+            }
+            savedRows.add(row);
+        }
+        return ResponseEntity.ok(savedRows);
+    }
+
+    /** DELETE /api/matches/{matchId}/player-overrides/team/{teamId} — resets to default roster. */
+    @Transactional
+    @DeleteMapping("/matches/{matchId}/player-overrides/team/{teamId}")
+    public ResponseEntity<?> deletePlayerOverrides(
+            @PathVariable Long matchId,
+            @PathVariable Long teamId) {
+        matchPlayerOverrideRepository.deleteByMatchIdAndTeamId(matchId, teamId);
+        return ResponseEntity.ok(Collections.singletonMap("message", "Overrides cleared for team " + teamId));
     }
 
     @Transactional

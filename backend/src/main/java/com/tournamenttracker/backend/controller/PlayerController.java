@@ -42,6 +42,33 @@ public class PlayerController {
     @Autowired
     private GroupRepository groupRepository;
 
+    /** Search registered players by name (first or last, case-insensitive). Max 10 results. */
+    @GetMapping("/players/search")
+    public ResponseEntity<?> searchPlayers(@RequestParam(name = "q", defaultValue = "") String q) {
+        if (q == null || q.trim().length() < 2) {
+            Map<String, String> err = new HashMap<>();
+            err.put("error", "Search query must be at least 2 characters");
+            return ResponseEntity.badRequest().body(err);
+        }
+        String trimmed = q.trim();
+        List<Player> results = playerRepository
+                .findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(trimmed, trimmed);
+        // Limit to top 10 and return only needed fields
+        List<Map<String, Object>> response = results.stream()
+                .limit(10)
+                .map(p -> {
+                    Map<String, Object> m = new java.util.LinkedHashMap<>();
+                    m.put("id", p.getId());
+                    m.put("firstName", p.getFirstName());
+                    m.put("lastName", p.getLastName());
+                    m.put("email", p.getEmail());
+                    m.put("skillLevel", p.getSkillLevel());
+                    return m;
+                })
+                .collect(java.util.stream.Collectors.toList());
+        return ResponseEntity.ok(response);
+    }
+
     @GetMapping("/teams/{id}")
     public ResponseEntity<Team> getTeamById(@PathVariable Long id) {
         return teamRepository.findById(id)
@@ -239,14 +266,6 @@ public class PlayerController {
         return ResponseEntity.ok(response);
     }
 
-    @GetMapping("/players/search")
-    public List<Player> searchPlayers(@RequestParam String query) {
-        if (query == null || query.trim().isEmpty()) {
-            return java.util.Collections.emptyList();
-        }
-        String q = query.trim();
-        return playerRepository.findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(q, q);
-    }
 
     @PostMapping("/teams/doubles")
     public ResponseEntity<Map<String, Object>> addDoublesTeam(@RequestBody DoublesTeamRequest request) {

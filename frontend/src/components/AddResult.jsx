@@ -60,6 +60,25 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
 
   const [participants, setParticipants] = useState([]);
 
+  // ── Player Availability Override state ──────────────────────────────────────
+  // Saved overrides loaded from DB: [{ slotPosition, absentPlayerId, absentPlayerName, subPlayerId, subPlayerName, subPlayerSkillLevel }]
+  const [team1Overrides, setTeam1Overrides] = useState([]);
+  const [team2Overrides, setTeam2Overrides] = useState([]);
+  // Pending (UI-editing) overrides — before the admin presses "Save Availability"
+  // Structure: { [slotPosition]: { absentPlayerId, absentPlayerName, subPlayerId, subPlayerName } }
+  const [pendingOverrides1, setPendingOverrides1] = useState({});
+  const [pendingOverrides2, setPendingOverrides2] = useState({});
+  // Track which team's override panel is currently open (1 or 2 or null)
+  const [savingOverride, setSavingOverride] = useState(null); // 1 | 2 | null
+  // Substitute search
+  const [subSearch, setSubSearch] = useState({ teamNum: null, slot: null, query: '', results: [], loading: false });
+  // Team IDs (playerTeamId) — stored so availability panel can reference them in JSX
+  const [team1Id, setTeam1Id] = useState(null);
+  const [team2Id, setTeam2Id] = useState(null);
+  // Availability modal
+  const [showAvailabilityModal, setShowAvailabilityModal] = useState(false);
+  const [modalSaveError, setModalSaveError] = useState('');
+
   const currentDivision = divisions.find(d => String(d.id) === String(selectedDivisionId));
   const isMatchCompleted = hasExistingResult && existingP1Status !== null;
 
@@ -261,6 +280,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
         } else {
           clearScores();
         }
+
       } catch (err) {
         console.error('Error loading match details/results:', err);
       } finally {
@@ -271,7 +291,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     loadMatchDetailsAndResult();
   }, [selectedMatchId]);
 
-  // Fetch team players for Team division when match or participants are loaded
+  // Fetch team players AND player overrides for Team division when match changes
   useEffect(() => {
     if (!selectedMatchId || !matchDetails || participants.length === 0 || divisions.length === 0) {
       setTeamPlayers1([]);
@@ -289,6 +309,10 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
         const p1 = participants.find(p => p.id === matchDetails.participant1);
         const p2 = participants.find(p => p.id === matchDetails.participant2);
         if (p1 && p2) {
+          // Store team IDs for use in availability panel at render time
+          setTeam1Id(p1.playerTeamId);
+          setTeam2Id(p2.playerTeamId);
+
           const p1PlayersResp = await fetch(`${API_BASE_URL}/api/teams/${p1.playerTeamId}/players`);
           if (p1PlayersResp.ok) {
             const p1Players = await p1PlayersResp.json();
@@ -298,6 +322,35 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           if (p2PlayersResp.ok) {
             const p2Players = await p2PlayersResp.json();
             setTeamPlayers2(p2Players);
+          }
+
+          // Load player availability overrides — done here because we need team IDs
+          try {
+            const ovResp = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}/player-overrides`);
+            if (ovResp.ok) {
+              const ovData = await ovResp.json();
+              const t1Ov = ovData.filter(o => String(o.teamId) === String(p1.playerTeamId));
+              const t2Ov = ovData.filter(o => String(o.teamId) === String(p2.playerTeamId));
+              setTeam1Overrides(t1Ov);
+              setTeam2Overrides(t2Ov);
+              const toPending = (overrides) => {
+                const obj = {};
+                overrides.forEach(o => {
+                  obj[o.slotPosition] = {
+                    absentPlayerId: o.absentPlayerId,
+                    absentPlayerName: o.absentPlayerName || '',
+                    subPlayerId: o.subPlayerId || null,
+                    subPlayerName: o.subPlayerName || '',
+                    subPlayerSkillLevel: o.subPlayerSkillLevel || '',
+                  };
+                });
+                return obj;
+              };
+              setPendingOverrides1(toPending(t1Ov));
+              setPendingOverrides2(toPending(t2Ov));
+            }
+          } catch (ovErr) {
+            console.error('Error loading player overrides:', ovErr);
           }
         }
       } catch (err) {
@@ -330,6 +383,14 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     setSavedSets({ 1: false, 2: false, 3: false, 4: false });
     setResultType('Normal');
     setForfeitingParticipantId('');
+    setTeam1Overrides([]);
+    setTeam2Overrides([]);
+    setPendingOverrides1({});
+    setPendingOverrides2({});
+    setSubSearch({ teamNum: null, slot: null, query: '', results: [], loading: false });
+    setTeam1Id(null);
+    setTeam2Id(null);
+
   };
 
   const handleDivisionChange = (divId) => {
@@ -777,9 +838,366 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     );
   }
 
+  /** Compute effective roster: replace absent slots with subs; remove absent-with-no-sub slots. */
+  const getEffectiveRoster = (teamPlayers, savedOverrides) => {
+    if (!savedOverrides || savedOverrides.length === 0) return teamPlayers;
+    const roster = [...teamPlayers];
+    savedOverrides.forEach(ov => {
+      const idx = ov.slotPosition - 1;
+      if (idx < 0 || idx >= roster.length) return;
+      if (ov.subPlayerId) {
+        roster[idx] = {
+          id: ov.subPlayerId,
+          firstName: (ov.subPlayerName || '').split(' ')[0] || 'Sub',
+          lastName: (ov.subPlayerName || '').split(' ').slice(1).join(' ') || '',
+          skillLevel: ov.subPlayerSkillLevel || '',
+          isSubstitute: true,
+        };
+      } else {
+        roster[idx] = null; // absent, no sub
+      }
+    });
+    return roster.filter(Boolean);
+  };
+
+  /** Player display name with optional (Sub) tag */
+  const playerDisplayName = (player) => {
+    if (!player) return '';
+    const name = `${player.firstName} ${player.lastName}`.trim();
+    return player.isSubstitute ? `${name} (Sub)` : name;
+  };
+
+  /** Renders the Player Availability panel for one team — used inside the modal. */
+  const renderAvailabilityPanel = (teamNum, teamPlayers, savedOverrides, pendingOverrides, setPendingOverrides, teamId) => {
+    if (!teamPlayers || teamPlayers.length === 0 || !matchDetails) return null;
+
+    // Compute effective count from pending state
+    const absentWithNoSub = Object.values(pendingOverrides).filter(o => !o.subPlayerId).length;
+    const effectiveCount = teamPlayers.length - absentWithNoSub;
+    const belowMinimum = effectiveCount < 3;
+
+    const handleToggleAbsent = (slotPosition, player) => {
+      setPendingOverrides(prev => {
+        const next = { ...prev };
+        if (next[slotPosition]) {
+          delete next[slotPosition];
+        } else {
+          next[slotPosition] = {
+            absentPlayerId: player.id,
+            absentPlayerName: `${player.firstName} ${player.lastName}`,
+            subPlayerId: null,
+            subPlayerName: '',
+            subPlayerSkillLevel: '',
+          };
+        }
+        return next;
+      });
+      setSubSearch({ teamNum: null, slot: null, query: '', results: [], loading: false });
+    };
+
+    const handleSubSearch = async (slot, query) => {
+      setSubSearch(prev => ({ ...prev, teamNum, slot, query, loading: true, results: [] }));
+      if (query.trim().length < 2) {
+        setSubSearch(prev => ({ ...prev, loading: false, results: [] }));
+        return;
+      }
+      try {
+        const resp = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(query.trim())}`);
+        if (resp.ok) {
+          const data = await resp.json();
+          setSubSearch(prev => ({ ...prev, loading: false, results: data }));
+        }
+      } catch (e) {
+        setSubSearch(prev => ({ ...prev, loading: false }));
+      }
+    };
+
+    const handleSelectSub = (slot, player) => {
+      setPendingOverrides(prev => ({
+        ...prev,
+        [slot]: {
+          ...prev[slot],
+          subPlayerId: player.id,
+          subPlayerName: `${player.firstName} ${player.lastName}`,
+          subPlayerSkillLevel: player.skillLevel || '',
+        }
+      }));
+      setSubSearch({ teamNum: null, slot: null, query: '', results: [], loading: false });
+    };
+
+    const handleClearSub = (slot) => {
+      setPendingOverrides(prev => ({
+        ...prev,
+        [slot]: { ...prev[slot], subPlayerId: null, subPlayerName: '', subPlayerSkillLevel: '' }
+      }));
+    };
+
+    // Per-team reset button handler (lifted to component scope via handleResetOverride)
+    const hasSavedOverrides = savedOverrides.length > 0;
+
+    return (
+      <div style={{ background: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '14px', padding: '1.25rem' }}>
+        {/* Team label row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '1rem' }}>
+          <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--text-primary)' }}>
+            {teamNum === 1 ? matchDetails.participant1Name : matchDetails.participant2Name}
+          </span>
+          {hasSavedOverrides && (
+            <span style={{ marginLeft: 'auto', fontSize: '0.72rem', color: '#fb923c', fontWeight: '600', background: 'rgba(251,146,60,0.15)', padding: '2px 8px', borderRadius: '20px' }}>
+              Override Active
+            </span>
+          )}
+          {(hasSavedOverrides || Object.keys(pendingOverrides).length > 0) && (
+            <button
+              type="button"
+              onClick={() => handleResetOverride(teamNum, teamId)}
+              disabled={savingOverride !== null}
+              style={{ marginLeft: hasSavedOverrides ? '0' : 'auto', padding: '3px 10px', borderRadius: '8px', fontSize: '0.75rem', fontWeight: '600', cursor: savingOverride !== null ? 'not-allowed' : 'pointer', background: 'rgba(239,68,68,0.08)', color: '#f87171', border: '1px solid rgba(239,68,68,0.3)' }}
+            >
+              Reset
+            </button>
+          )}
+        </div>
+
+        {/* Player rows */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+          {teamPlayers.map((player, idx) => {
+            const slot = idx + 1;
+            const isAbsent = !!pendingOverrides[slot];
+            const ovData = pendingOverrides[slot];
+            const isSearchingThisSlot = subSearch.teamNum === teamNum && subSearch.slot === slot;
+
+            return (
+              <div key={slot} style={{ background: isAbsent ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isAbsent ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '10px', padding: '0.65rem 0.9rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '600', minWidth: '20px' }}>P{slot}</span>
+                  <span style={{ flex: 1, fontSize: '0.9rem', color: isAbsent ? 'var(--text-secondary)' : 'var(--text-primary)', textDecoration: isAbsent ? 'line-through' : 'none' }}>
+                    {player.firstName} {player.lastName}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAbsent(slot, player)}
+                    style={{
+                      padding: '3px 10px', borderRadius: '8px', fontSize: '0.775rem', fontWeight: '600', cursor: 'pointer',
+                      border: `1px solid ${isAbsent ? 'rgba(239,68,68,0.5)' : 'rgba(74,222,128,0.5)'}`,
+                      background: isAbsent ? 'rgba(239,68,68,0.15)' : 'rgba(74,222,128,0.1)',
+                      color: isAbsent ? '#f87171' : '#4ade80', transition: 'all 0.2s'
+                    }}
+                  >
+                    {isAbsent ? '✕ Absent' : '✓ Available'}
+                  </button>
+                </div>
+
+                {isAbsent && (
+                  <div style={{ marginTop: '0.65rem', paddingTop: '0.65rem', borderTop: '1px solid rgba(239,68,68,0.15)' }}>
+                    {ovData.subPlayerId ? (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#4ade80" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-primary)' }}>Sub: <strong>{ovData.subPlayerName}</strong>{ovData.subPlayerSkillLevel ? ` (${ovData.subPlayerSkillLevel})` : ''}</span>
+                        <button type="button" onClick={() => handleClearSub(slot)} style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>Change</button>
+                      </div>
+                    ) : (
+                      <div style={{ position: 'relative' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '0.4rem 0.7rem' }}>
+                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                          <input
+                            type="text"
+                            placeholder="Search substitute player... (optional)"
+                            value={isSearchingThisSlot ? subSearch.query : ''}
+                            onChange={e => handleSubSearch(slot, e.target.value)}
+                            onFocus={() => setSubSearch(prev => ({ ...prev, teamNum, slot }))}
+                            style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.85rem' }}
+                          />
+                          {isSearchingThisSlot && subSearch.loading && <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }} />}
+                        </div>
+                        {isSearchingThisSlot && subSearch.results.length > 0 && (
+                          <div style={{ position: 'absolute', zIndex: 200, top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--glass-border)', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
+                            {subSearch.results.map(p => (
+                              <button key={p.id} type="button" onClick={() => handleSelectSub(slot, p)}
+                                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '0.6rem 0.9rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '0.875rem', textAlign: 'left' }}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                              >
+                                <span style={{ flex: 1 }}>{p.firstName} {p.lastName}</span>
+                                {p.skillLevel && <span style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'rgba(59,130,246,0.12)', padding: '1px 7px', borderRadius: '10px' }}>{p.skillLevel}</span>}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Effective count indicator */}
+        <div style={{ marginTop: '1rem', padding: '0.6rem 0.9rem', borderRadius: '8px', background: belowMinimum ? 'rgba(239,68,68,0.1)' : 'rgba(74,222,128,0.07)', border: `1px solid ${belowMinimum ? 'rgba(239,68,68,0.3)' : 'rgba(74,222,128,0.2)'}`, fontSize: '0.825rem', color: belowMinimum ? '#f87171' : '#4ade80', fontWeight: '600' }}>
+          {belowMinimum
+            ? `⛔ Effective players: ${effectiveCount} — minimum 3 required`
+            : `✓ Effective players: ${effectiveCount} — ${effectiveCount === 3 ? '3-player' : '4-player'} rotation will apply`}
+        </div>
+      </div>
+    );
+  };
+
+  /** Lifted save handler — saves overrides for one team. Returns true on success. */
+  const handleSaveOverride = async (teamNum, teamId, pendingOverrides, teamPlayers) => {
+    const absentWithNoSub = Object.values(pendingOverrides).filter(o => !o.subPlayerId).length;
+    const effectiveCount = teamPlayers.length - absentWithNoSub;
+    if (effectiveCount < 3) return false;
+
+    const slots = Object.entries(pendingOverrides).map(([slot, ov]) => ({
+      slotPosition: parseInt(slot),
+      absentPlayerId: ov.absentPlayerId || null,
+      subPlayerId: ov.subPlayerId || null,
+    }));
+    const resp = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}/player-overrides`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId, slots }),
+    });
+    if (resp.ok) {
+      const saved = await resp.json();
+      if (teamNum === 1) setTeam1Overrides(saved);
+      else setTeam2Overrides(saved);
+      return true;
+    }
+    const errData = await resp.json().catch(() => ({}));
+    throw new Error(errData.error || 'Failed to save availability.');
+  };
+
+  /** Lifted reset handler — clears overrides for one team. */
+  const handleResetOverride = async (teamNum, teamId) => {
+    setSavingOverride(teamNum);
+    try {
+      await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}/player-overrides/team/${teamId}`, { method: 'DELETE' });
+      if (teamNum === 1) { setTeam1Overrides([]); setPendingOverrides1({}); }
+      else { setTeam2Overrides([]); setPendingOverrides2({}); }
+    } catch (e) {
+      alert('Failed to reset availability.');
+    } finally {
+      setSavingOverride(null);
+    }
+  };
+
+  /** Unified save for both teams — called by modal's Save button. */
+  const handleSaveAllAvailability = async () => {
+    setModalSaveError('');
+    setSavingOverride('all');
+    try {
+      if (team1Id && teamPlayers1.length > 0) {
+        await handleSaveOverride(1, team1Id, pendingOverrides1, teamPlayers1);
+      }
+      if (team2Id && teamPlayers2.length > 0) {
+        await handleSaveOverride(2, team2Id, pendingOverrides2, teamPlayers2);
+      }
+      setShowAvailabilityModal(false);
+    } catch (e) {
+      setModalSaveError(e.message || 'Failed to save. Check player counts and try again.');
+    } finally {
+      setSavingOverride(null);
+    }
+  };
+
+  /** Renders the full availability modal — both teams side by side. */
+  const renderAvailabilityModal = () => {
+    if (!showAvailabilityModal) return null;
+    const bothBelowMin =
+      (teamPlayers1.length > 0 && (teamPlayers1.length - Object.values(pendingOverrides1).filter(o => !o.subPlayerId).length) < 3) ||
+      (teamPlayers2.length > 0 && (teamPlayers2.length - Object.values(pendingOverrides2).filter(o => !o.subPlayerId).length) < 3);
+
+    return (
+      <div
+        style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
+        onClick={e => { if (e.target === e.currentTarget) setShowAvailabilityModal(false); }}
+      >
+        <div style={{
+          background: 'var(--surface)', border: '1px solid var(--glass-border)', borderRadius: '24px',
+          padding: '2rem', width: '100%', maxWidth: '760px', maxHeight: '88vh',
+          display: 'flex', flexDirection: 'column', gap: '1.5rem', boxShadow: '0 32px 80px rgba(0,0,0,0.6)',
+          overflowY: 'auto'
+        }}>
+          {/* Modal header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fbbf24" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Player Availability</h2>
+            <button
+              type="button"
+              onClick={() => setShowAvailabilityModal(false)}
+              style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85rem' }}
+            >
+              ✕ Close
+            </button>
+          </div>
+
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0, lineHeight: '1.5' }}>
+            Mark any players who are absent today. Optionally assign a substitute from the registered players list.
+            The system will automatically apply 3-player or 4-player pairing rotation based on the effective count.
+          </p>
+
+          {/* Two team panels */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {team1Id && renderAvailabilityPanel(1, teamPlayers1, team1Overrides, pendingOverrides1, setPendingOverrides1, team1Id)}
+            {team2Id && renderAvailabilityPanel(2, teamPlayers2, team2Overrides, pendingOverrides2, setPendingOverrides2, team2Id)}
+          </div>
+
+          {/* Error */}
+          {modalSaveError && (
+            <div style={{ background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.3)', borderRadius: '10px', padding: '0.75rem 1rem', fontSize: '0.875rem', color: '#f87171' }}>
+              ⛔ {modalSaveError}
+            </div>
+          )}
+
+          {/* Modal footer */}
+          <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
+            <button
+              type="button"
+              onClick={() => setShowAvailabilityModal(false)}
+              className="form-cancel-btn"
+              style={{ flex: '0 0 auto', minWidth: '100px' }}
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveAllAvailability}
+              disabled={bothBelowMin || savingOverride === 'all'}
+              style={{
+                flex: 1, padding: '0.7rem 1rem', borderRadius: '12px', fontWeight: '700', fontSize: '0.95rem',
+                cursor: (bothBelowMin || savingOverride === 'all') ? 'not-allowed' : 'pointer',
+                background: bothBelowMin ? 'rgba(255,255,255,0.05)' : 'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(251,191,36,0.12))',
+                color: bothBelowMin ? 'var(--text-secondary)' : '#fbbf24',
+                border: `1px solid ${bothBelowMin ? 'rgba(255,255,255,0.08)' : 'rgba(251,191,36,0.4)'}`,
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                opacity: savingOverride === 'all' ? 0.7 : 1,
+              }}
+            >
+              {savingOverride === 'all' ? (
+                <><div className="spinner" style={{ width: '14px', height: '14px', borderWidth: '2px' }} /> Saving...</>
+              ) : (
+                <>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+                  Save Availability
+                </>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+
+
   const getTeamPairingsForSet = (players, setNum) => {
     const getPlayerName = (list, index) =>
-      list && list[index] ? `${list[index].firstName} ${list[index].lastName}` : `Player ${index + 1}`;
+      list && list[index] ? playerDisplayName(list[index]) : `Player ${index + 1}`;
 
     const count = players && players.length > 0 ? players.length : 4;
 
@@ -823,9 +1241,11 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   };
 
   const renderTeamSetCard = (setNum, setP1At11, setSetP1At11, setP2At11, setSetP2At11, setP1, setSetP1, setP2, setSetP2, p1Players, p2Players) => {
-    // Determine player rotation designations based on setNum and each team's roster size
-    const pair1 = getTeamPairingsForSet(p1Players, setNum);
-    const pair2 = getTeamPairingsForSet(p2Players, setNum);
+    // Compute effective rosters (applying overrides)
+    const effective1 = getEffectiveRoster(p1Players, team1Overrides);
+    const effective2 = getEffectiveRoster(p2Players, team2Overrides);
+    const pair1 = getTeamPairingsForSet(effective1, setNum);
+    const pair2 = getTeamPairingsForSet(effective2, setNum);
 
     const firstHalfPairs1 = pair1.firstHalf;
     const firstHalfPairs2 = pair2.firstHalf;
@@ -981,8 +1401,12 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   return (
     <div className="matches-page-container" style={{ maxWidth: '800px' }}>
 
+      {/* ── Player Availability Modal ── */}
+      {renderAvailabilityModal()}
+
       {/* ── Reset Scores Confirmation Modal ── */}
       {showResetModal && (
+
         <div
           style={{
             position: 'fixed', inset: 0, zIndex: 1000,
@@ -1318,6 +1742,39 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
               {/* Score entry — hidden for Forfeit / Cancelled */}
               {resultType === 'Normal' && (currentDivision?.divisionType === 'Team' ? (
                 <div>
+                  {/* Player Availability trigger button — only for incomplete matches */}
+                  {!isMatchCompleted && team1Id && (
+                    <div style={{ marginBottom: '1.5rem' }}>
+                      <button
+                        type="button"
+                        onClick={() => { setModalSaveError(''); setShowAvailabilityModal(true); }}
+                        style={{
+                          display: 'inline-flex', alignItems: 'center', gap: '8px',
+                          padding: '0.55rem 1.1rem', borderRadius: '12px', fontSize: '0.875rem',
+                          fontWeight: '600', cursor: 'pointer',
+                          background: (team1Overrides.length > 0 || team2Overrides.length > 0)
+                            ? 'rgba(251,191,36,0.12)' : 'rgba(255,255,255,0.05)',
+                          color: (team1Overrides.length > 0 || team2Overrides.length > 0)
+                            ? '#fbbf24' : 'var(--text-secondary)',
+                          border: `1px solid ${(team1Overrides.length > 0 || team2Overrides.length > 0)
+                            ? 'rgba(251,191,36,0.4)' : 'rgba(255,255,255,0.12)'}`,
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/>
+                          <path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                        </svg>
+                        Player Availability
+                        {(team1Overrides.length > 0 || team2Overrides.length > 0) && (
+                          <span style={{ background: 'rgba(251,146,60,0.2)', color: '#fb923c', fontSize: '0.72rem', fontWeight: '700', padding: '1px 8px', borderRadius: '20px', border: '1px solid rgba(251,146,60,0.35)' }}>
+                            ⚠ Override Active
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
                   <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1.25rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet (Team Format)</h3>
                   {renderTeamSetCard(1, set1P1At11, setSet1P1At11, set1P2At11, setSet1P2At11, set1P1, setSet1P1, set1P2, setSet1P2, teamPlayers1, teamPlayers2)}
                   {renderTeamSetCard(2, set2P1At11, setSet2P1At11, set2P2At11, setSet2P2At11, set2P1, setSet2P1, set2P2, setSet2P2, teamPlayers1, teamPlayers2)}
@@ -1325,8 +1782,10 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
 
                   {validationErrors.set1 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 1: {validationErrors.set1}</div>}
                   {validationErrors.set2 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 2: {validationErrors.set2}</div>}
+
                   {validationErrors.set3 && <div style={{ fontSize: '0.85rem', color: 'var(--color-error)', marginBottom: '0.5rem' }}>* Set 3: {validationErrors.set3}</div>}
                 </div>
+
               ) : (
                 <div>
                   <h3 style={{ fontFamily: 'var(--font-title)', fontSize: '1.25rem', color: 'var(--text-primary)', marginBottom: '1rem', borderBottom: '1px solid var(--glass-border)', paddingBottom: '0.4rem' }}>Score Entry Sheet</h3>
