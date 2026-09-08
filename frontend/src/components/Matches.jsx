@@ -770,6 +770,11 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                                 </span>
                               )}
                             </div>
+                            {(m.participant1PlayerNames || m.participant2PlayerNames) && (
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                {m.participant1PlayerNames} <span style={{ color: 'var(--primary)', fontWeight: '600' }}>vs</span> {m.participant2PlayerNames}
+                              </div>
+                            )}
                             {(m.matchDate || m.startTime) && (
                               <div className="match-card-line2" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                                 {m.matchDate} {m.startTime ? `@ ${m.startTime}` : ''}
@@ -819,6 +824,11 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                                 </span>
                               )}
                             </div>
+                            {(m.participant1PlayerNames || m.participant2PlayerNames) && (
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                {m.participant1PlayerNames} <span style={{ color: 'var(--primary)', fontWeight: '600' }}>vs</span> {m.participant2PlayerNames}
+                              </div>
+                            )}
                             {(m.matchDate || m.startTime) && (
                               <div className="match-card-line2" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                                 {m.matchDate} {m.startTime ? `@ ${m.startTime}` : ''}
@@ -877,6 +887,11 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                                 </span>
                               )}
                             </div>
+                            {(m.participant1PlayerNames || m.participant2PlayerNames) && (
+                              <div style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                {m.participant1PlayerNames} <span style={{ color: 'var(--primary)', fontWeight: '600' }}>vs</span> {m.participant2PlayerNames}
+                              </div>
+                            )}
                             {(m.matchDate || m.startTime) && (
                               <div className="match-card-line2" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
                                 {m.matchDate} {m.startTime ? `@ ${m.startTime}` : ''}

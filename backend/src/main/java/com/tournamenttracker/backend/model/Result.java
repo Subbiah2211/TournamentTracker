@@ -6,10 +6,16 @@ import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import java.time.OffsetDateTime;
 
 @Entity
-@Table(name = "\"Results\"")
+@Table(
+    name = "\"Results\"",
+    uniqueConstraints = {
+        @UniqueConstraint(name = "uq_results_match_id", columnNames = {"match_id"})
+    }
+)
 public class Result {
 
     @Id
@@ -17,7 +23,7 @@ public class Result {
     @Column(name = "id")
     private Long id;
 
-    @Column(name = "match_id", nullable = false)
+    @Column(name = "match_id", nullable = false, unique = true)
     private Long matchId;
 
     @Column(name = "set1_p1")

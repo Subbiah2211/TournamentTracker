@@ -59,6 +59,10 @@ public class MatchController {
     private String getPlayerNamesForParticipant(Long participantId) {
         if (participantId == null) return "";
         return participantRepository.findById(participantId).map(p -> {
+            // Singles: player name is already shown as the participant name — skip to avoid redundancy
+            if ("Singles".equalsIgnoreCase(p.getType())) {
+                return "";
+            }
             if ("Doubles".equalsIgnoreCase(p.getType()) || "Team".equalsIgnoreCase(p.getType())) {
                 List<TeamPlayer> teamPlayers = teamPlayerRepository.findByTeamId(p.getPlayerTeamId());
                 if (teamPlayers != null && !teamPlayers.isEmpty()) {
@@ -104,10 +108,10 @@ public class MatchController {
             res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
             res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
 
-            // Fetch result if available
-            Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
-            if (resultOpt.isPresent()) {
-                Result r = resultOpt.get();
+            // Fetch result if available — use findAllByMatchId to survive any existing duplicate rows
+            List<Result> allResults = resultRepository.findAllByMatchId(m.getMatchId());
+            if (!allResults.isEmpty()) {
+                Result r = allResults.get(0);
                 res.setP1Status(r.getP1Status());
                 res.setP2Status(r.getP2Status());
             }
@@ -160,10 +164,10 @@ public class MatchController {
             res.setCourtId(m.getCourtId());
             res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
             res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
-            Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
-            if (resultOpt.isPresent()) {
-                res.setP1Status(resultOpt.get().getP1Status());
-                res.setP2Status(resultOpt.get().getP2Status());
+            List<Result> allResults2 = resultRepository.findAllByMatchId(m.getMatchId());
+            if (!allResults2.isEmpty()) {
+                res.setP1Status(allResults2.get(0).getP1Status());
+                res.setP2Status(allResults2.get(0).getP2Status());
             }
             responses.add(res);
         }
@@ -195,13 +199,14 @@ public class MatchController {
             res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
             res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
 
-            Optional<Result> resultOpt = resultRepository.findByMatchId(m.getMatchId());
-            if (resultOpt.isPresent()) {
-                Result r = resultOpt.get();
+            List<Result> matchResults = resultRepository.findAllByMatchId(m.getMatchId());
+            if (!matchResults.isEmpty()) {
+                Result r = matchResults.get(0);
                 res.setP1Status(r.getP1Status());
                 res.setP2Status(r.getP2Status());
             }
             return ResponseEntity.ok(res);
+
         }).orElse(ResponseEntity.notFound().build());
     }
 
@@ -239,9 +244,11 @@ public class MatchController {
 
     @GetMapping("/matches/{matchId}/result")
     public ResponseEntity<Result> getResultByMatch(@PathVariable Long matchId) {
-        return resultRepository.findByMatchId(matchId)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+        List<Result> allResults = resultRepository.findAllByMatchId(matchId);
+        if (allResults.isEmpty()) {
+            return ResponseEntity.notFound().build();
+        }
+        return ResponseEntity.ok(allResults.get(0));
     }
 
     // ─── Player Availability Override Endpoints ───────────────────────────────
@@ -367,14 +374,19 @@ public class MatchController {
     @Transactional
     @DeleteMapping("/results/match/{matchId}")
     public ResponseEntity<?> resetResult(@PathVariable Long matchId) {
-        // 1. Find the result
-        Optional<Result> resultOpt = resultRepository.findByMatchId(matchId);
-        if (!resultOpt.isPresent()) {
+        // 1. Find the result — also cleans up any stale duplicate rows caused by race condition
+        List<Result> allMatchResults = resultRepository.findAllByMatchId(matchId);
+        if (allMatchResults.isEmpty()) {
             Map<String, String> err = new HashMap<>();
             err.put("error", "No result found for this match");
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(err);
         }
-        Result existing = resultOpt.get();
+        // If there are duplicate rows (race-condition artifact), delete extras
+        if (allMatchResults.size() > 1) {
+            allMatchResults.subList(1, allMatchResults.size()).forEach(resultRepository::delete);
+            resultRepository.flush();
+        }
+        Result existing = allMatchResults.get(0);
 
         // 2. Find the match
         Optional<Match> matchOpt = matchRepository.findById(matchId);
@@ -516,7 +528,9 @@ public class MatchController {
             result.setP2Status(null);
             result.setResultType("Normal");
 
-            Optional<Result> existingOpt = resultRepository.findByMatchId(result.getMatchId());
+            // Use pessimistic lock — serialises concurrent partial saves so the second
+            // concurrent request sees the first's committed row and updates instead of inserting.
+            Optional<Result> existingOpt = resultRepository.findByMatchIdForUpdate(result.getMatchId());
             Result savedResult;
             if (existingOpt.isPresent()) {
                 Result existing = existingOpt.get();
@@ -668,8 +682,8 @@ public class MatchController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(err);
         }
 
-        // 4. Revert existing result if overwriting
-        Optional<Result> existingOpt = resultRepository.findByMatchId(result.getMatchId());
+        // 4. Revert existing result if overwriting — use pessimistic lock to serialise concurrent submits
+        Optional<Result> existingOpt = resultRepository.findByMatchIdForUpdate(result.getMatchId());
         Result savedResult;
 
         if (existingOpt.isPresent()) {
