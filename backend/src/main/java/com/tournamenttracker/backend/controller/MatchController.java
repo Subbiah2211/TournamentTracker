@@ -56,7 +56,7 @@ public class MatchController {
     @Autowired
     private MatchPlayerOverrideRepository matchPlayerOverrideRepository;
 
-    private String getPlayerNamesForParticipant(Long participantId) {
+    private String getPlayerNamesForParticipant(Long participantId, Long matchId) {
         if (participantId == null) return "";
         return participantRepository.findById(participantId).map(p -> {
             // Singles: player name is already shown as the participant name — skip to avoid redundancy
@@ -66,11 +66,37 @@ public class MatchController {
             if ("Doubles".equalsIgnoreCase(p.getType()) || "Team".equalsIgnoreCase(p.getType())) {
                 List<TeamPlayer> teamPlayers = teamPlayerRepository.findByTeamId(p.getPlayerTeamId());
                 if (teamPlayers != null && !teamPlayers.isEmpty()) {
+                    // Build a map of absentPlayerId -> subPlayerId for this match+team
+                    Map<Long, Long> overrideMap = new HashMap<>();
+                    if (matchId != null) {
+                        List<MatchPlayerOverride> overrides =
+                                matchPlayerOverrideRepository.findByMatchIdAndTeamId(matchId, p.getPlayerTeamId());
+                        for (MatchPlayerOverride o : overrides) {
+                            if (o.getAbsentPlayerId() != null) {
+                                // subPlayerId may be null (playing short — slot dropped entirely)
+                                overrideMap.put(o.getAbsentPlayerId(), o.getSubPlayerId());
+                            }
+                        }
+                    }
+
                     List<Long> playerIds = teamPlayers.stream().map(TeamPlayer::getPlayerId).toList();
                     List<Player> players = playerRepository.findAllById(playerIds);
-                    return players.stream()
-                            .map(player -> player.getFirstName() + " " + player.getLastName())
-                            .collect(Collectors.joining(" / "));
+
+                    List<String> names = new ArrayList<>();
+                    for (Player player : players) {
+                        if (overrideMap.containsKey(player.getId())) {
+                            Long subId = overrideMap.get(player.getId());
+                            if (subId != null) {
+                                // Substitute present — show sub name instead
+                                playerRepository.findById(subId).ifPresent(sub ->
+                                        names.add(sub.getFirstName() + " " + sub.getLastName() + " (sub)"));
+                            }
+                            // subId == null means playing short — omit this slot entirely
+                        } else {
+                            names.add(player.getFirstName() + " " + player.getLastName());
+                        }
+                    }
+                    return String.join(" / ", names);
                 }
             }
             return "";
@@ -105,8 +131,8 @@ public class MatchController {
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
             res.setCourtId(m.getCourtId());
-            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
-            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
+            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1(), m.getMatchId()));
+            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2(), m.getMatchId()));
 
             // Fetch result if available — use findAllByMatchId to survive any existing duplicate rows
             List<Result> allResults = resultRepository.findAllByMatchId(m.getMatchId());
@@ -162,8 +188,8 @@ public class MatchController {
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
             res.setCourtId(m.getCourtId());
-            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
-            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
+            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1(), m.getMatchId()));
+            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2(), m.getMatchId()));
             List<Result> allResults2 = resultRepository.findAllByMatchId(m.getMatchId());
             if (!allResults2.isEmpty()) {
                 res.setP1Status(allResults2.get(0).getP1Status());
@@ -196,8 +222,8 @@ public class MatchController {
             res.setEndTime(m.getEndTime());
             res.setRound(m.getRound());
             res.setCourtId(m.getCourtId());
-            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1()));
-            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2()));
+            res.setParticipant1PlayerNames(getPlayerNamesForParticipant(m.getParticipant1(), m.getMatchId()));
+            res.setParticipant2PlayerNames(getPlayerNamesForParticipant(m.getParticipant2(), m.getMatchId()));
 
             List<Result> matchResults = resultRepository.findAllByMatchId(m.getMatchId());
             if (!matchResults.isEmpty()) {

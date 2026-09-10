@@ -309,9 +309,13 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
   const upcomingMatches = filteredMatches.filter(m => !m.matchDate || m.matchDate > todayStr);
   const pastMatches = filteredMatches.filter(m => m.matchDate && m.matchDate < todayStr);
 
-  // Sorting descending by date and time, ascending by round
+  // Sorting: court name → round → date → time
   const sortMatches = (list) => {
     return [...list].sort((a, b) => {
+      const courtNameA = (courts.find(c => c.id === a.courtId)?.courtName || '\uffff').toLowerCase();
+      const courtNameB = (courts.find(c => c.id === b.courtId)?.courtName || '\uffff').toLowerCase();
+      if (courtNameA !== courtNameB) return courtNameA.localeCompare(courtNameB);
+
       const roundA = a.round !== null && a.round !== undefined ? a.round : Infinity;
       const roundB = b.round !== null && b.round !== undefined ? b.round : Infinity;
       if (roundA !== roundB) return roundA - roundB;
@@ -319,6 +323,7 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
       const dateA = a.matchDate || '';
       const dateB = b.matchDate || '';
       if (dateA !== dateB) return dateB.localeCompare(dateA);
+
       const timeA = a.startTime || '';
       const timeB = b.startTime || '';
       return timeB.localeCompare(timeA);

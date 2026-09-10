@@ -291,9 +291,13 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     loadMatchDetailsAndResult();
   }, [selectedMatchId]);
 
-  // Fetch team players AND player overrides for Team division when match changes
+  // Fetch team players AND player overrides for Team division when match changes.
+  // NOTE: We deliberately do NOT depend on `matchDetails` state here — doing so caused a race
+  // condition where this effect fired before the sibling effect had committed matchDetails,
+  // leaving team1Id null and hiding the Player Availability button on first visit.
+  // Instead, we fetch match data directly from the API using selectedMatchId.
   useEffect(() => {
-    if (!selectedMatchId || !matchDetails || participants.length === 0 || divisions.length === 0) {
+    if (!selectedMatchId || participants.length === 0 || divisions.length === 0) {
       setTeamPlayers1([]);
       setTeamPlayers2([]);
       return;
@@ -306,8 +310,18 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
 
     const loadTeamPlayers = async () => {
       try {
-        const p1 = participants.find(p => p.id === matchDetails.participant1);
-        const p2 = participants.find(p => p.id === matchDetails.participant2);
+        // Fetch match data directly so we don't race with the matchDetails state update
+        let activeMatchData = null;
+        const matchResp = await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}`);
+        if (matchResp.ok) {
+          activeMatchData = await matchResp.json();
+          // Keep matchDetails state in sync (idempotent — same data)
+          setMatchDetails(activeMatchData);
+        }
+        if (!activeMatchData) return;
+
+        const p1 = participants.find(p => p.id === activeMatchData.participant1);
+        const p2 = participants.find(p => p.id === activeMatchData.participant2);
         if (p1 && p2) {
           // Store team IDs for use in availability panel at render time
           setTeam1Id(p1.playerTeamId);
@@ -359,7 +373,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     };
 
     loadTeamPlayers();
-  }, [selectedMatchId, matchDetails, participants, divisions, selectedDivisionId]);
+  }, [selectedMatchId, participants, divisions, selectedDivisionId]);
 
   const clearScores = () => {
     setSet1P1('');
