@@ -30,6 +30,14 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
   const [formError, setFormError] = useState('');
   const [successAlert, setSuccessAlert] = useState(false);
 
+  // Custom access code — used in the create form
+  const [customAccessCode, setCustomAccessCode] = useState('');
+  // Inline code editing in the detail view
+  const [editingCode, setEditingCode] = useState(false);
+  const [codeInputValue, setCodeInputValue] = useState('');
+  const [codeSaving, setCodeSaving] = useState(false);
+  const [codeError, setCodeError] = useState('');
+
   const isAdmin = user && user.role === 'admin';
 
   // Read URL parameters to detect selected division
@@ -132,7 +140,7 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
     setGroupCount(1);
     setNumSets(3);
     setStatus('active');
-    
+    setCustomAccessCode('');
     setValidationErrors({});
     setFormError('');
     setSubView('create');
@@ -184,7 +192,9 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
       maxTeams: maxTeams ? parseInt(maxTeams) : null,
       groupCount: groupCount ? parseInt(groupCount) : 1,
       numSets: numSets ? parseInt(numSets) : 3,
-      status
+      status,
+      // Include custom code only if admin typed one; backend will auto-generate if blank
+      accessCode: customAccessCode.trim() || undefined
     };
 
     try {
@@ -208,6 +218,12 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
         });
       }
       if (!response.ok) {
+        // Handle 409 Conflict — duplicate access code
+        if (response.status === 409) {
+          const errData = await response.json().catch(() => ({}));
+          setFormError(errData.error || 'Access code is already in use. Please choose a different one.');
+          return;
+        }
         throw new Error('Failed to save division details');
       }
 
@@ -242,7 +258,8 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
   const handleRegenerateCode = async () => {
     if (!selectedDivision || !window.confirm("Are you sure you want to regenerate the guest access code for this division? Existing guests may need to enter the new code.")) return;
     try {
-      setLoading(true);
+      setCodeSaving(true);
+      setCodeError('');
       const resp = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivision.id}/regenerate-code`, {
         method: 'POST'
       });
@@ -250,15 +267,46 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
         const data = await resp.json();
         setSelectedDivision({ ...selectedDivision, accessCode: data.accessCode });
         setDivisions(divisions.map(d => d.id === selectedDivision.id ? { ...d, accessCode: data.accessCode } : d));
-        alert('Access code regenerated successfully.');
+        setEditingCode(false);
+        setCodeInputValue('');
       } else {
         throw new Error('Failed to regenerate code');
       }
     } catch (err) {
       console.error(err);
-      alert('Error regenerating access code');
+      setCodeError('Error regenerating access code');
     } finally {
-      setLoading(false);
+      setCodeSaving(false);
+    }
+  };
+
+  const handleSaveCustomCode = async () => {
+    const sanitized = codeInputValue.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!sanitized) { setCodeError('Code must contain at least one letter or digit.'); return; }
+    try {
+      setCodeSaving(true);
+      setCodeError('');
+      const resp = await fetch(`${API_BASE_URL}/api/divisions/${selectedDivision.id}/access-code`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode: sanitized })
+      });
+      if (resp.status === 409) {
+        const data = await resp.json().catch(() => ({}));
+        setCodeError(data.error || 'That code is already taken by another division.');
+        return;
+      }
+      if (!resp.ok) throw new Error('Failed to save code');
+      const data = await resp.json();
+      setSelectedDivision({ ...selectedDivision, accessCode: data.accessCode });
+      setDivisions(divisions.map(d => d.id === selectedDivision.id ? { ...d, accessCode: data.accessCode } : d));
+      setEditingCode(false);
+      setCodeInputValue('');
+    } catch (err) {
+      console.error(err);
+      setCodeError('Error saving access code');
+    } finally {
+      setCodeSaving(false);
     }
   };
 
@@ -517,20 +565,57 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
                       <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
                     </svg>
                   </div>
-                  <div className="info-content" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', flexDirection: 'row' }}>
-                    <div>
-                      <span className="info-label" style={{ color: 'var(--primary)' }}>Guest Access Code</span>
-                      <span className="info-value" style={{ fontFamily: 'monospace', fontSize: '1.25rem', letterSpacing: '4px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                        {selectedDivision.accessCode || 'Not Generated'}
-                      </span>
-                    </div>
-                    <button className="admin-btn edit-btn" onClick={handleRegenerateCode} style={{ padding: '8px 16px', fontSize: '0.85rem', margin: 0, minHeight: 'auto' }}>
-                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="1 4 1 10 7 10"></polyline>
-                        <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
-                      </svg>
-                      Regenerate
-                    </button>
+                  <div className="info-content" style={{ width: '100%' }}>
+                    <span className="info-label" style={{ color: 'var(--primary)' }}>Guest Access Code</span>
+
+                    {!editingCode ? (
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
+                        <span className="info-value" style={{ fontFamily: 'monospace', fontSize: '1.25rem', letterSpacing: '4px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                          {selectedDivision.accessCode || 'Not Generated'}
+                        </span>
+                        <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          <button className="admin-btn edit-btn" onClick={() => { setCodeInputValue(selectedDivision.accessCode || ''); setCodeError(''); setEditingCode(true); }} style={{ padding: '8px 16px', fontSize: '0.85rem', margin: 0, minHeight: 'auto' }}>
+                            ✏️ Set Custom Code
+                          </button>
+                          <button className="admin-btn edit-btn" onClick={handleRegenerateCode} disabled={codeSaving} style={{ padding: '8px 16px', fontSize: '0.85rem', margin: 0, minHeight: 'auto' }}>
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="1 4 1 10 7 10"></polyline>
+                              <path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"></path>
+                            </svg>
+                            {codeSaving ? 'Generating...' : 'Regenerate'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginTop: '0.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                          <input
+                            type="text"
+                            value={codeInputValue}
+                            onChange={(e) => setCodeInputValue(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                            placeholder="e.g. TENNIS2025"
+                            style={{
+                              fontFamily: 'monospace', fontSize: '1.1rem', letterSpacing: '3px',
+                              padding: '0.4rem 0.75rem', borderRadius: '8px',
+                              border: '1px solid var(--glass-border)', background: 'var(--glass-bg)',
+                              color: 'var(--text-primary)', minWidth: '180px', textTransform: 'uppercase'
+                            }}
+                            disabled={codeSaving}
+                            autoFocus
+                          />
+                          <button className="admin-btn edit-btn" onClick={handleSaveCustomCode} disabled={codeSaving || !codeInputValue.trim()} style={{ padding: '8px 16px', fontSize: '0.85rem', margin: 0, minHeight: 'auto' }}>
+                            {codeSaving ? 'Saving...' : 'Save Code'}
+                          </button>
+                          <button onClick={() => { setEditingCode(false); setCodeError(''); }} style={{ padding: '8px 14px', borderRadius: '8px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: '0.85rem' }}>
+                            Cancel
+                          </button>
+                        </div>
+                        <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                          Letters and digits only — spaces and special characters are stripped automatically.
+                        </span>
+                        {codeError && <span style={{ fontSize: '0.82rem', color: 'var(--color-error)' }}>{codeError}</span>}
+                      </div>
+                    )}
                   </div>
                 </div>
               )}
@@ -788,6 +873,39 @@ export default function Divisions({ tournamentId, user, onNavigate, searchQuery 
                   <option value={4}>4 Sets (with Singles Set)</option>
                 </select>
               </div>
+
+              {/* Custom Access Code — only visible on CREATE, not EDIT */}
+              {subView === 'create' && (
+                <div className="form-group">
+                  <label htmlFor="divAccessCode" className="form-label">🔑 Guest Access Code</label>
+                  <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                    <input
+                      id="divAccessCode"
+                      type="text"
+                      className="form-input"
+                      style={{ fontFamily: 'monospace', letterSpacing: '3px', textTransform: 'uppercase', flex: 1 }}
+                      value={customAccessCode}
+                      onChange={(e) => setCustomAccessCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ''))}
+                      placeholder="Leave blank to auto-generate"
+                      disabled={formLoading}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+                        setCustomAccessCode(Array.from({ length: 5 }, () => chars[Math.floor(Math.random() * chars.length)]).join(''));
+                      }}
+                      style={{ padding: '0.55rem 0.9rem', borderRadius: '10px', border: '1px solid var(--glass-border)', background: 'transparent', color: 'var(--text-secondary)', cursor: 'pointer', whiteSpace: 'nowrap', fontSize: '0.85rem' }}
+                      disabled={formLoading}
+                    >
+                      🎲 Random
+                    </button>
+                  </div>
+                  <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px', display: 'block' }}>
+                    Letters and digits only. Leave blank to auto-generate a 5-character code.
+                  </span>
+                </div>
+              )}
 
               <div className="form-actions-row">
                 <button

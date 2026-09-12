@@ -68,6 +68,20 @@ public class DivisionController {
         return sb.toString();
     }
 
+    /** Sanitizes a custom code to uppercase alphanumeric only. Returns null if the result is blank. */
+    private String sanitizeCode(String raw) {
+        if (raw == null) return null;
+        String sanitized = raw.toUpperCase().replaceAll("[^A-Z0-9]", "");
+        return sanitized.isEmpty() ? null : sanitized;
+    }
+
+    /** Returns true if another division (other than excludeId) already uses this code (case-insensitive). */
+    private boolean isAccessCodeTaken(String code, Long excludeId) {
+        Division existing = divisionRepository.findByAccessCodeIgnoreCase(code);
+        if (existing == null) return false;
+        return excludeId == null || !existing.getId().equals(excludeId);
+    }
+
     // Alphabet labels for group naming: A, B, C, ...
     private static final String ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
@@ -175,7 +189,7 @@ public class DivisionController {
     }
 
     @PostMapping("/divisions")
-    public ResponseEntity<Division> createDivision(@RequestBody Division division) {
+    public ResponseEntity<?> createDivision(@RequestBody Division division) {
         if (division.getName() == null || division.getName().trim().isEmpty() ||
             division.getTournamentId() == null ||
             division.getStartDate() == null || division.getEndDate() == null ||
@@ -190,7 +204,25 @@ public class DivisionController {
                 ? division.getGroupCount() : 1;
         division.setGroupCount(groupCount);
 
-        division.setAccessCode(generateAccessCode());
+        // Resolve access code: use admin-supplied custom code if provided, else auto-generate
+        String customCode = sanitizeCode(division.getAccessCode());
+        if (customCode != null) {
+            if (isAccessCodeTaken(customCode, null)) {
+                Map<String, String> err = new HashMap<>();
+                err.put("error", "Access code '" + customCode + "' is already in use by another division. Please choose a different code.");
+                return ResponseEntity.status(409).body(err);
+            }
+            division.setAccessCode(customCode);
+        } else {
+            // Auto-generate, retrying on the rare collision
+            String generated;
+            int attempts = 0;
+            do {
+                generated = generateAccessCode();
+                attempts++;
+            } while (isAccessCodeTaken(generated, null) && attempts < 10);
+            division.setAccessCode(generated);
+        }
 
         Division saved = divisionRepository.save(division);
 
@@ -200,6 +232,24 @@ public class DivisionController {
             groupRepository.save(g);
         }
 
+        return ResponseEntity.ok(saved);
+    }
+
+    /** Admin endpoint to set a custom access code on an existing division. */
+    @PutMapping("/divisions/{id}/access-code")
+    public ResponseEntity<?> setCustomAccessCode(@PathVariable Long id, @RequestBody Map<String, String> payload) {
+        String customCode = sanitizeCode(payload.get("accessCode"));
+        if (customCode == null || customCode.isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Access code must contain at least one alphanumeric character."));
+        }
+        if (isAccessCodeTaken(customCode, id)) {
+            return ResponseEntity.status(409).body(Map.of("error", "Access code '" + customCode + "' is already in use by another division."));
+        }
+        java.util.Optional<Division> divOpt = divisionRepository.findById(id);
+        if (divOpt.isEmpty()) return ResponseEntity.notFound().build();
+        Division division = divOpt.get();
+        division.setAccessCode(customCode);
+        Division saved = divisionRepository.save(division);
         return ResponseEntity.ok(saved);
     }
 

@@ -98,6 +98,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
   const [formLoading, setFormLoading] = useState(false);
   const [validationErrors, setValidationErrors] = useState({});
   const [formError, setFormError] = useState('');
+  const [teamCreatedSuccess, setTeamCreatedSuccess] = useState(false);
 
   const isAdmin = user && user.role === 'admin';
 
@@ -153,7 +154,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!p1SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(p1SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(p1SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setP1SearchResults(data);
@@ -170,7 +171,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!p2SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(p2SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(p2SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setP2SearchResults(data);
@@ -187,7 +188,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g1SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g1SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(g1SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG1SearchResults(data);
@@ -204,7 +205,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g2SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g2SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(g2SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG2SearchResults(data);
@@ -221,7 +222,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g3SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g3SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(g3SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG3SearchResults(data);
@@ -238,7 +239,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
     if (!g4SearchQuery.trim()) return;
     const delay = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/players/search?query=${encodeURIComponent(g4SearchQuery)}`);
+        const res = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(g4SearchQuery)}`);
         if (res.ok) {
           const data = await res.json();
           setG4SearchResults(data);
@@ -692,8 +693,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert('Team successfully created');
-        setSubView('list');
+        setTeamCreatedSuccess(true);
         setReloadTrigger(prev => prev + 1);
       } else {
         const errMsg = data.message || 'Failed to create team';
@@ -779,8 +779,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       const data = await response.json();
 
       if (response.ok && data.success) {
-        alert('Team successfully created');
-        setSubView('list');
+        setTeamCreatedSuccess(true);
         setReloadTrigger(prev => prev + 1);
       } else {
         const errMsg = data.message || 'Failed to create team';
@@ -1715,7 +1714,54 @@ export default function Players({ tournamentId, user, onNavigate }) {
         </div>
       ) : (subView === 'add-doubles' || subView === 'edit-doubles') ? (
         /* 'add-doubles' or 'edit-doubles' View */
-        <div className="division-form-view">
+        <div className="division-form-view" style={{ position: 'relative' }}>
+
+          {/* ── Team Created Success Modal ── */}
+          {teamCreatedSuccess && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <div style={{
+                background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+                borderRadius: '20px', padding: '2.5rem 2rem', maxWidth: '420px', width: '90%',
+                textAlign: 'center', boxShadow: '0 24px 60px rgba(0,0,0,0.4)'
+              }}>
+                <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>✅</div>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 0.5rem' }}>
+                  Team Created Successfully
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '2rem' }}>
+                  What would you like to do next?
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <button
+                    onClick={() => { setTeamCreatedSuccess(false); enterAddDoublesMode(); }}
+                    style={{
+                      padding: '0.75rem 1.5rem', borderRadius: '12px', border: 'none',
+                      background: 'var(--primary)', color: '#fff',
+                      fontWeight: '700', fontSize: '1rem', cursor: 'pointer'
+                    }}
+                  >
+                    Create another team
+                  </button>
+                  <button
+                    onClick={() => { setTeamCreatedSuccess(false); setSubView('list'); }}
+                    style={{
+                      padding: '0.75rem 1.5rem', borderRadius: '12px',
+                      border: '1px solid var(--glass-border)',
+                      background: 'transparent', color: 'var(--text-secondary)',
+                      fontWeight: '500', fontSize: '0.95rem', cursor: 'pointer'
+                    }}
+                  >
+                    Go back to teams
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button className="back-btn" onClick={() => setSubView('list')}>
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>
@@ -2158,7 +2204,54 @@ export default function Players({ tournamentId, user, onNavigate }) {
         </div>
       ) : (subView === 'add-generic' || subView === 'edit-generic') ? (
         /* 'add-generic' or 'edit-generic' View */
-        <div className="division-form-view">
+        <div className="division-form-view" style={{ position: 'relative' }}>
+
+          {/* ── Team Created Success Modal ── */}
+          {teamCreatedSuccess && (
+            <div style={{
+              position: 'fixed', inset: 0, zIndex: 1000,
+              background: 'rgba(0,0,0,0.65)', backdropFilter: 'blur(6px)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}>
+              <div style={{
+                background: 'var(--glass-bg)', border: '1px solid var(--glass-border)',
+                borderRadius: '20px', padding: '2.5rem 2rem', maxWidth: '420px', width: '90%',
+                textAlign: 'center', boxShadow: '0 24px 60px rgba(0,0,0,0.4)'
+              }}>
+                <div style={{ fontSize: '3rem', marginBottom: '0.75rem' }}>✅</div>
+                <h2 style={{ fontSize: '1.35rem', fontWeight: '700', color: 'var(--text-primary)', margin: '0 0 0.5rem' }}>
+                  Team Created Successfully
+                </h2>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '2rem' }}>
+                  What would you like to do next?
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <button
+                    onClick={() => { setTeamCreatedSuccess(false); enterAddGenericMode(); }}
+                    style={{
+                      padding: '0.75rem 1.5rem', borderRadius: '12px', border: 'none',
+                      background: 'var(--primary)', color: '#fff',
+                      fontWeight: '700', fontSize: '1rem', cursor: 'pointer'
+                    }}
+                  >
+                    Create another team
+                  </button>
+                  <button
+                    onClick={() => { setTeamCreatedSuccess(false); setSubView('list'); }}
+                    style={{
+                      padding: '0.75rem 1.5rem', borderRadius: '12px',
+                      border: '1px solid var(--glass-border)',
+                      background: 'transparent', color: 'var(--text-secondary)',
+                      fontWeight: '500', fontSize: '0.95rem', cursor: 'pointer'
+                    }}
+                  >
+                    Go back to teams
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
           <button className="back-btn" onClick={() => setSubView('list')}>
             <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="19" y1="12" x2="5" y2="12"></line>

@@ -125,15 +125,14 @@ export default function GuestAccessModal({ isOpen, expectedDivisionId, onVerify,
           <form onSubmit={handleVerifyCode}>
             <div className="guest-modal-header">
               <h2><span role="img" aria-label="key">🔑</span> Division Access</h2>
-              <p>Enter the 5-character access code provided by the tournament administrator.</p>
+              <p>Enter the access code provided by the tournament administrator.</p>
             </div>
             
             <div className="guest-form-group">
               <input
                 type="text"
                 className="guest-code-input"
-                placeholder="e.g. AB1C2"
-                maxLength={5}
+                placeholder="e.g. TENNIS or AB1C2"
                 value={code}
                 onChange={(e) => setCode(e.target.value.toUpperCase())}
                 autoFocus
