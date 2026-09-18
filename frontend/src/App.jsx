@@ -260,6 +260,7 @@ function App() {
         
         // Set user and route after delay to allow success toast to render
         setTimeout(() => {
+          setGuestSession(null); // clear any stale guest session on login
           setUser({ userName: data.userName, role: data.role });
           if (redirectAfterLogin) {
             navigate(redirectAfterLogin.page, redirectAfterLogin.params, true);
@@ -528,6 +529,7 @@ function App() {
                 tournamentId={selectedTournamentId}
                 user={user}
                 guestSession={guestSession}
+                onGuestSessionChange={(newSession) => setGuestSession(newSession)}
                 onNavigate={navigate}
                 searchQuery={currentSearchQuery}
               />

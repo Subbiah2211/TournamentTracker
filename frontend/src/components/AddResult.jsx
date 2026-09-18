@@ -1269,7 +1269,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     return (
       <div className="team-set-card" style={{ background: 'rgba(255, 255, 255, 0.02)', border: '1px solid var(--glass-border)', borderRadius: '16px', padding: '1.5rem', marginBottom: '1.5rem' }}>
         <h4 style={{ fontSize: '1.1rem', fontWeight: '600', color: 'var(--primary)', marginBottom: '1.25rem', borderBottom: '1px solid rgba(255, 255, 255, 0.08)', paddingBottom: '0.5rem' }}>
-          Set {setNum} {setNum === 3 ? '(if split)' : ''}
+          Set {setNum}
         </h4>
 
         {/* Rotation helper display */}
@@ -1808,7 +1808,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                     <div style={{ fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Participant</div>
                     <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 1</div>
                     <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 2</div>
-                    <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 3 (if split)</div>
+                    <div style={{ textAlign: 'center', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Set 3</div>
 
                     {/* Row for Participant 1 */}
                     <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

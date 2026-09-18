@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
+import GuestAccessModal from './GuestAccessModal';
 
-export default function Matches({ tournamentId, user, guestSession, onNavigate, searchQuery }) {
+export default function Matches({ tournamentId, user, guestSession, onGuestSessionChange, onNavigate, searchQuery }) {
   const [divisions, setDivisions] = useState([]);
   const [selectedDivisionId, setSelectedDivisionId] = useState(null);
   const [matches, setMatches] = useState([]);
@@ -42,6 +43,10 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
 
   const [upcomingExpanded, setUpcomingExpanded] = useState(false);
   const [completedExpanded, setCompletedExpanded] = useState(false);
+
+  // Guest division switching
+  const [switchingToDivisionId, setSwitchingToDivisionId] = useState(null);
+  const [showSwitchModal, setShowSwitchModal] = useState(false);
 
   const isAdmin = user && user.role === 'admin';
   const canEditResults = (user && (user.role === 'admin' || user.role === 'editor')) || !!guestSession;
@@ -537,10 +542,24 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
                 <div style={{ display: 'flex', gap: '1rem', flex: 1, flexWrap: 'wrap', alignItems: 'flex-end' }}>
                   <div className="form-group" style={{ margin: 0, minWidth: '280px', flex: '1' }}>
                     <label htmlFor="divSelect" className="form-label" style={{ marginBottom: '0.4rem', fontSize: '0.85rem' }}>Division</label>
-                    {guestSession ? (
-                      <div className="form-input form-select" style={{ minHeight: '48px', display: 'flex', alignItems: 'center', background: 'var(--surface)', cursor: 'not-allowed', color: 'var(--text-secondary)' }}>
-                        {guestSession.divisionName}
-                      </div>
+                    {guestSession && !user ? (
+                      <select
+                        id="divSelect"
+                        className="form-input form-select"
+                        value={selectedDivisionId || ''}
+                        onChange={(e) => {
+                          const targetId = parseInt(e.target.value);
+                          if (targetId === selectedDivisionId) return;
+                          setSwitchingToDivisionId(targetId);
+                          setShowSwitchModal(true);
+                          // Do NOT update selectedDivisionId yet — controlled value stays at current division
+                        }}
+                        style={{ minHeight: '48px', cursor: 'pointer' }}
+                      >
+                        {divisions.map((div) => (
+                          <option key={div.id} value={div.id}>{div.name}</option>
+                        ))}
+                      </select>
                     ) : (
                       <select
                         id="divSelect"
@@ -1111,6 +1130,40 @@ export default function Matches({ tournamentId, user, guestSession, onNavigate, 
             </form>
           </div>
         </div>
+      )}
+
+      {/* ── Guest Division Switch Modal ── */}
+      {guestSession && !user && (
+        <GuestAccessModal
+          isOpen={showSwitchModal}
+          mode="switch"
+          expectedDivisionId={switchingToDivisionId}
+          switchingDivisionName={divisions.find(d => d.id === switchingToDivisionId)?.name}
+          onVerify={(newDivisionInfo) => {
+            // Update the app-level guest session with the new division
+            if (onGuestSessionChange) {
+              onGuestSessionChange({
+                ...guestSession,
+                divisionId: newDivisionInfo.divisionId,
+                divisionName: newDivisionInfo.divisionName,
+              });
+            }
+            // Update local state to show the new division's matches
+            setSelectedDivisionId(newDivisionInfo.divisionId);
+            setSelectedGroupId(null);
+            setSelectedRoundFilter('all');
+            setSelectedTeamFilter('all');
+            setUpcomingExpanded(false);
+            setCompletedExpanded(false);
+            setShowSwitchModal(false);
+            setSwitchingToDivisionId(null);
+          }}
+          onCancel={() => {
+            // Close modal; selectedDivisionId unchanged so dropdown reverts naturally
+            setShowSwitchModal(false);
+            setSwitchingToDivisionId(null);
+          }}
+        />
       )}
     </div>
   );

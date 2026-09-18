@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { API_BASE_URL } from '../config';
 import './GuestAccessModal.css';
 
-export default function GuestAccessModal({ isOpen, expectedDivisionId, onVerify, onCancel }) {
+export default function GuestAccessModal({ isOpen, expectedDivisionId, onVerify, onCancel, mode = 'entry', switchingDivisionName }) {
   const [step, setStep] = useState(1);
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
@@ -52,7 +52,18 @@ export default function GuestAccessModal({ isOpen, expectedDivisionId, onVerify,
         setError('This code is for a different division. Please enter the correct code.');
         return;
       }
+
+      // ── Switch mode: skip player-pick, call onVerify immediately ──
+      if (mode === 'switch') {
+        onVerify({
+          divisionId: data.divisionId,
+          divisionName: data.divisionName,
+          tournamentId: data.tournamentId,
+        });
+        return;
+      }
       
+      // ── Entry mode: proceed to player-pick step ──
       setDivisionInfo(data);
       
       // Fetch players
@@ -125,7 +136,11 @@ export default function GuestAccessModal({ isOpen, expectedDivisionId, onVerify,
           <form onSubmit={handleVerifyCode}>
             <div className="guest-modal-header">
               <h2><span role="img" aria-label="key">🔑</span> Division Access</h2>
-              <p>Enter the access code provided by the tournament administrator.</p>
+              {mode === 'switch' && switchingDivisionName ? (
+                <p>Enter the access code for <strong>{switchingDivisionName}</strong>.</p>
+              ) : (
+                <p>Enter the access code provided by the tournament administrator.</p>
+              )}
             </div>
             
             <div className="guest-form-group">
