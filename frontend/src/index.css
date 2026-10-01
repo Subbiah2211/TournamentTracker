@@ -23,6 +23,10 @@
   --glass-border-focus: rgba(99, 102, 241, 0.4);
   --glass-shadow: 0 20px 50px -12px rgba(0, 0, 0, 0.5);
   --glass-glow: 0 0 40px -10px rgba(99, 102, 241, 0.15);
+
+  /* Surface colours — solid dark panels (modals, dropdowns, cards) */
+  --surface: #1e293b;           /* Slate 800 — base surface */
+  --surface-elevated: #334155;  /* Slate 700 — raised surface / hover */
   
   /* Status Colors */
   --color-success: #10b981;    /* Emerald 500 */

@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { API_BASE_URL } from '../config';
 
 export default function AddResult({ tournamentId, user, guestSession, onNavigate, searchQuery }) {
@@ -39,6 +40,10 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   // Players list for team division
   const [teamPlayers1, setTeamPlayers1] = useState([]);
   const [teamPlayers2, setTeamPlayers2] = useState([]);
+  // Display order for each team's player rows — indices into the teamPlayers array.
+  // Initialized to identity [0,1,2,...] and only changes when user reorders via arrows.
+  const [playerOrder1, setPlayerOrder1] = useState([]);
+  const [playerOrder2, setPlayerOrder2] = useState([]);
 
   const [loading, setLoading] = useState(true);
   const [formLoading, setFormLoading] = useState(false);
@@ -72,6 +77,14 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   const [savingOverride, setSavingOverride] = useState(null); // 1 | 2 | null
   // Substitute search
   const [subSearch, setSubSearch] = useState({ teamNum: null, slot: null, query: '', results: [], loading: false });
+  const [subDropdownPos, setSubDropdownPos] = useState(null);
+  // Ref for the modal overlay — the dropdown portal target.
+  // The overlay is position:fixed inset:0 with no overflow, so it never clips children.
+  // backdrop-filter on the overlay makes it the containing block for position:fixed,
+  // so we portal here and use position:absolute — coordinates match viewport 1:1 since inset:0.
+  const modalOverlayRef = useRef(null);
+  const activeSubInputRef = useRef(null); // kept for any future ref needs
+
   // Team IDs (playerTeamId) — stored so availability panel can reference them in JSX
   const [team1Id, setTeam1Id] = useState(null);
   const [team2Id, setTeam2Id] = useState(null);
@@ -331,11 +344,13 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           if (p1PlayersResp.ok) {
             const p1Players = await p1PlayersResp.json();
             setTeamPlayers1(p1Players);
+            setPlayerOrder1(p1Players.map((_, i) => i));
           }
           const p2PlayersResp = await fetch(`${API_BASE_URL}/api/teams/${p2.playerTeamId}/players`);
           if (p2PlayersResp.ok) {
             const p2Players = await p2PlayersResp.json();
             setTeamPlayers2(p2Players);
+            setPlayerOrder2(p2Players.map((_, i) => i));
           }
 
           // Load player availability overrides — done here because we need team IDs
@@ -392,6 +407,8 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     setSet3P2At11('');
     setTeamPlayers1([]);
     setTeamPlayers2([]);
+    setPlayerOrder1([]);
+    setPlayerOrder2([]);
     setHasExistingResult(false);
     setExistingP1Status(null);
     setSavedSets({ 1: false, 2: false, 3: false, 4: false });
@@ -882,13 +899,42 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   };
 
   /** Renders the Player Availability panel for one team — used inside the modal. */
-  const renderAvailabilityPanel = (teamNum, teamPlayers, savedOverrides, pendingOverrides, setPendingOverrides, teamId) => {
+  const renderAvailabilityPanel = (teamNum, teamPlayers, savedOverrides, pendingOverrides, setPendingOverrides, teamId, playerOrder, setPlayerOrder) => {
     if (!teamPlayers || teamPlayers.length === 0 || !matchDetails) return null;
 
     // Compute effective count from pending state
     const absentWithNoSub = Object.values(pendingOverrides).filter(o => !o.subPlayerId).length;
     const effectiveCount = teamPlayers.length - absentWithNoSub;
     const belowMinimum = effectiveCount < 3;
+
+    // Arrows are visible only when at least one sub is assigned
+    const hasAnySub = Object.values(pendingOverrides).some(o => !!o.subPlayerId);
+
+    /** Swap two display rows and remap pendingOverrides slot keys to match new positions. */
+    const handleMoveRow = (displayIdx, direction) => {
+      const targetIdx = displayIdx + direction;
+      if (targetIdx < 0 || targetIdx >= playerOrder.length) return;
+      // Swap display order
+      const newOrder = [...playerOrder];
+      [newOrder[displayIdx], newOrder[targetIdx]] = [newOrder[targetIdx], newOrder[displayIdx]];
+      setPlayerOrder(newOrder);
+      // Remap override keys: old slot = displayIdx+1, new slot = targetIdx+1 (and vice versa)
+      const oldSlotA = displayIdx + 1;
+      const oldSlotB = targetIdx + 1;
+      setPendingOverrides(prev => {
+        const next = { ...prev };
+        const ovA = prev[oldSlotA];
+        const ovB = prev[oldSlotB];
+        if (ovA) next[oldSlotB] = ovA; else delete next[oldSlotB];
+        if (ovB) next[oldSlotA] = ovB; else delete next[oldSlotA];
+        return next;
+      });
+    };
+
+    // Build the ordered player list for rendering
+    const orderedPlayers = (playerOrder && playerOrder.length === teamPlayers.length)
+      ? playerOrder.map(i => teamPlayers[i])
+      : teamPlayers;
 
     const handleToggleAbsent = (slotPosition, player) => {
       setPendingOverrides(prev => {
@@ -973,17 +1019,42 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           )}
         </div>
 
+        {/* Reorder hint — shown only when arrows are active */}
+        {hasAnySub && (
+          <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.35rem 0 0.75rem', fontStyle: 'italic' }}>
+            ↕ Tap arrows to set playing order for this match
+          </p>
+        )}
+
         {/* Player rows */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-          {teamPlayers.map((player, idx) => {
-            const slot = idx + 1;
+          {orderedPlayers.map((player, displayIdx) => {
+            const slot = displayIdx + 1;
             const isAbsent = !!pendingOverrides[slot];
             const ovData = pendingOverrides[slot];
             const isSearchingThisSlot = subSearch.teamNum === teamNum && subSearch.slot === slot;
 
             return (
-              <div key={slot} style={{ background: isAbsent ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isAbsent ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '10px', padding: '0.65rem 0.9rem' }}>
+              <div key={playerOrder && playerOrder.length === teamPlayers.length ? playerOrder[displayIdx] : displayIdx}
+                style={{ background: isAbsent ? 'rgba(239,68,68,0.06)' : 'rgba(255,255,255,0.03)', border: `1px solid ${isAbsent ? 'rgba(239,68,68,0.3)' : 'rgba(255,255,255,0.07)'}`, borderRadius: '10px', padding: '0.65rem 0.9rem' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                  {/* ↑↓ arrows — only when a sub is assigned somewhere in this team */}
+                  {hasAnySub && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1px' }}>
+                      <button type="button"
+                        onClick={() => handleMoveRow(displayIdx, -1)}
+                        disabled={displayIdx === 0}
+                        style={{ background: 'none', border: 'none', cursor: displayIdx === 0 ? 'default' : 'pointer', color: displayIdx === 0 ? 'var(--text-muted)' : 'var(--text-secondary)', fontSize: '0.7rem', lineHeight: 1, padding: '1px 3px' }}
+                        title="Move up"
+                      >&#9650;</button>
+                      <button type="button"
+                        onClick={() => handleMoveRow(displayIdx, 1)}
+                        disabled={displayIdx === orderedPlayers.length - 1}
+                        style={{ background: 'none', border: 'none', cursor: displayIdx === orderedPlayers.length - 1 ? 'default' : 'pointer', color: displayIdx === orderedPlayers.length - 1 ? 'var(--text-muted)' : 'var(--text-secondary)', fontSize: '0.7rem', lineHeight: 1, padding: '1px 3px' }}
+                        title="Move down"
+                      >&#9660;</button>
+                    </div>
+                  )}
                   <span style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', fontWeight: '600', minWidth: '20px' }}>P{slot}</span>
                   <span style={{ flex: 1, fontSize: '0.9rem', color: isAbsent ? 'var(--text-secondary)' : 'var(--text-primary)', textDecoration: isAbsent ? 'line-through' : 'none' }}>
                     {player.firstName} {player.lastName}
@@ -1011,33 +1082,38 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
                         <button type="button" onClick={() => handleClearSub(slot)} style={{ marginLeft: 'auto', fontSize: '0.75rem', color: 'var(--text-secondary)', background: 'none', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '6px', padding: '2px 8px', cursor: 'pointer' }}>Change</button>
                       </div>
                     ) : (
-                      <div style={{ position: 'relative' }}>
+                      <div
+                        data-sub-search-root="true"
+                        style={{ position: 'relative' }}
+                      >
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.12)', borderRadius: '8px', padding: '0.4rem 0.7rem' }}>
                           <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
                           <input
                             type="text"
                             placeholder="Search substitute player... (optional)"
                             value={isSearchingThisSlot ? subSearch.query : ''}
-                            onChange={e => handleSubSearch(slot, e.target.value)}
-                            onFocus={() => setSubSearch(prev => ({ ...prev, teamNum, slot }))}
+                            onFocus={(e) => {
+                              setSubSearch(prev => ({ ...prev, teamNum, slot }));
+                              // Capture position synchronously from the event — reliable, no ref timing issues
+                              const root = e.target.closest('[data-sub-search-root]');
+                              if (root) {
+                                const r = root.getBoundingClientRect();
+                                setSubDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width });
+                              }
+                            }}
+                            onChange={e => {
+                              // Re-capture position on each keystroke in case modal has scrolled
+                              const root = e.target.closest('[data-sub-search-root]');
+                              if (root) {
+                                const r = root.getBoundingClientRect();
+                                setSubDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width });
+                              }
+                              handleSubSearch(slot, e.target.value);
+                            }}
                             style={{ flex: 1, background: 'none', border: 'none', outline: 'none', color: 'var(--text-primary)', fontSize: '0.85rem' }}
                           />
                           {isSearchingThisSlot && subSearch.loading && <div className="spinner" style={{ width: '12px', height: '12px', borderWidth: '2px' }} />}
                         </div>
-                        {isSearchingThisSlot && subSearch.results.length > 0 && (
-                          <div style={{ position: 'absolute', zIndex: 200, top: 'calc(100% + 4px)', left: 0, right: 0, background: 'var(--surface)', border: '1px solid var(--glass-border)', borderRadius: '10px', boxShadow: '0 8px 24px rgba(0,0,0,0.5)', overflow: 'hidden' }}>
-                            {subSearch.results.map(p => (
-                              <button key={p.id} type="button" onClick={() => handleSelectSub(slot, p)}
-                                style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '0.6rem 0.9rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '0.875rem', textAlign: 'left' }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                              >
-                                <span style={{ flex: 1 }}>{p.firstName} {p.lastName}</span>
-                                {p.skillLevel && <span style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'rgba(59,130,246,0.12)', padding: '1px 7px', borderRadius: '10px' }}>{p.skillLevel}</span>}
-                              </button>
-                            ))}
-                          </div>
-                        )}
                       </div>
                     )}
                   </div>
@@ -1088,8 +1164,15 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
     setSavingOverride(teamNum);
     try {
       await fetch(`${API_BASE_URL}/api/matches/${selectedMatchId}/player-overrides/team/${teamId}`, { method: 'DELETE' });
-      if (teamNum === 1) { setTeam1Overrides([]); setPendingOverrides1({}); }
-      else { setTeam2Overrides([]); setPendingOverrides2({}); }
+      if (teamNum === 1) {
+        setTeam1Overrides([]);
+        setPendingOverrides1({});
+        setPlayerOrder1(teamPlayers1.map((_, i) => i));
+      } else {
+        setTeam2Overrides([]);
+        setPendingOverrides2({});
+        setPlayerOrder2(teamPlayers2.map((_, i) => i));
+      }
     } catch (e) {
       alert('Failed to reset availability.');
     } finally {
@@ -1108,12 +1191,19 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
       if (team2Id && teamPlayers2.length > 0) {
         await handleSaveOverride(2, team2Id, pendingOverrides2, teamPlayers2);
       }
-      setShowAvailabilityModal(false);
+      closeAvailabilityModal();
     } catch (e) {
       setModalSaveError(e.message || 'Failed to save. Check player counts and try again.');
     } finally {
       setSavingOverride(null);
     }
+  };
+
+  /** Close availability modal and clear any lingering search state. */
+  const closeAvailabilityModal = () => {
+    setSubSearch({ teamNum: null, slot: null, query: '', results: [], loading: false });
+    setSubDropdownPos(null);
+    setShowAvailabilityModal(false);
   };
 
   /** Renders the full availability modal — both teams side by side. */
@@ -1125,8 +1215,9 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
 
     return (
       <div
+        ref={modalOverlayRef}
         style={{ position: 'fixed', inset: 0, zIndex: 1000, background: 'rgba(0,0,0,0.72)', backdropFilter: 'blur(6px)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}
-        onClick={e => { if (e.target === e.currentTarget) setShowAvailabilityModal(false); }}
+        onClick={e => { if (e.target === e.currentTarget) closeAvailabilityModal(); }}
       >
         <div style={{
           background: 'var(--surface)', border: '1px solid var(--glass-border)', borderRadius: '24px',
@@ -1143,7 +1234,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
             <h2 style={{ fontSize: '1.2rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>Player Availability</h2>
             <button
               type="button"
-              onClick={() => setShowAvailabilityModal(false)}
+              onClick={() => closeAvailabilityModal()}
               style={{ marginLeft: 'auto', background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', padding: '6px 10px', cursor: 'pointer', color: 'var(--text-secondary)', fontSize: '0.85rem' }}
             >
               ✕ Close
@@ -1157,8 +1248,8 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
 
           {/* Two team panels */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {team1Id && renderAvailabilityPanel(1, teamPlayers1, team1Overrides, pendingOverrides1, setPendingOverrides1, team1Id)}
-            {team2Id && renderAvailabilityPanel(2, teamPlayers2, team2Overrides, pendingOverrides2, setPendingOverrides2, team2Id)}
+            {team1Id && renderAvailabilityPanel(1, teamPlayers1, team1Overrides, pendingOverrides1, setPendingOverrides1, team1Id, playerOrder1, setPlayerOrder1)}
+            {team2Id && renderAvailabilityPanel(2, teamPlayers2, team2Overrides, pendingOverrides2, setPendingOverrides2, team2Id, playerOrder2, setPlayerOrder2)}
           </div>
 
           {/* Error */}
@@ -1172,7 +1263,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
           <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.06)' }}>
             <button
               type="button"
-              onClick={() => setShowAvailabilityModal(false)}
+              onClick={() => closeAvailabilityModal()}
               className="form-cancel-btn"
               style={{ flex: '0 0 auto', minWidth: '100px' }}
             >
@@ -1413,6 +1504,7 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
   };
 
   return (
+    <>
     <div className="matches-page-container" style={{ maxWidth: '800px' }}>
 
       {/* ── Player Availability Modal ── */}
@@ -2063,5 +2155,56 @@ export default function AddResult({ tournamentId, user, guestSession, onNavigate
         </form>
       </div>
     </div>
+
+    {/* Substitute search dropdown — portalled into the modal overlay.
+        The overlay is position:fixed inset:0 with no overflow, so position:absolute
+        children are not clipped. Coordinates from getBoundingClientRect() are
+        viewport-relative; since the overlay is inset:0, they equal overlay-relative coords. */}
+    {subDropdownPos && subSearch.results.length > 0 && modalOverlayRef.current && createPortal(
+      <div
+        style={{
+          position: 'absolute',
+          zIndex: 10,
+          top: subDropdownPos.top,
+          left: subDropdownPos.left,
+          width: subDropdownPos.width,
+          background: 'var(--surface)',
+          border: '1px solid var(--glass-border)',
+          borderRadius: '10px',
+          boxShadow: '0 8px 32px rgba(0,0,0,0.7)',
+          overflow: 'hidden',
+        }}
+      >
+        {subSearch.results.map(p => (
+          <button
+            key={p.id}
+            type="button"
+            onClick={() => {
+              const slot = subSearch.slot;
+              const setter = subSearch.teamNum === 1 ? setPendingOverrides1 : setPendingOverrides2;
+              setter(prev => ({
+                ...prev,
+                [slot]: {
+                  ...prev[slot],
+                  subPlayerId: p.id,
+                  subPlayerName: `${p.firstName} ${p.lastName}`,
+                  subPlayerSkillLevel: p.skillLevel || '',
+                }
+              }));
+              setSubSearch({ teamNum: null, slot: null, query: '', results: [], loading: false });
+              setSubDropdownPos(null);
+            }}
+            style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '0.6rem 0.9rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-primary)', fontSize: '0.875rem', textAlign: 'left' }}
+            onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+          >
+            <span style={{ flex: 1 }}>{p.firstName} {p.lastName}</span>
+            {p.skillLevel && <span style={{ fontSize: '0.75rem', color: 'var(--primary)', background: 'rgba(59,130,246,0.12)', padding: '1px 7px', borderRadius: '10px' }}>{p.skillLevel}</span>}
+          </button>
+        ))}
+      </div>,
+      modalOverlayRef.current
+    )}
+    </>
   );
 }
