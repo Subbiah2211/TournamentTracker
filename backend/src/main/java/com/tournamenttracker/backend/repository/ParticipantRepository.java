@@ -16,6 +16,8 @@ public interface ParticipantRepository extends JpaRepository<Participant, Long> 
 
     List<Participant> findByDivisionId(Integer divisionId);
     java.util.Optional<Participant> findByPlayerTeamIdAndType(Long playerTeamId, String type);
+    List<Participant> findAllByPlayerTeamIdAndType(Long playerTeamId, String type);
+    java.util.Optional<Participant> findByPlayerTeamIdAndTypeAndDivisionId(Long playerTeamId, String type, Integer divisionId);
 
     List<Participant> findByGroupId(Long groupId);
     long countByGroupId(Long groupId);

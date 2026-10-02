@@ -118,7 +118,7 @@ export default function AdminPlayers({ user, onNavigate }) {
     const payload = {
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       phone: phone.trim() || null,
       gender: gender || null,
       age: age.trim() || null,
@@ -471,7 +471,7 @@ export default function AdminPlayers({ user, onNavigate }) {
     const payload = validationReport.players.map(p => ({
       firstName: p.firstName,
       lastName: p.lastName,
-      email: p.email,
+      email: p.email.trim().toLowerCase(),
       phone: p.phone,
       gender: p.gender,
       age: p.age,

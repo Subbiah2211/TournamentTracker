@@ -23,4 +23,8 @@ public interface MatchPlayerOverrideRepository extends JpaRepository<MatchPlayer
     @Modifying
     @Query("DELETE FROM MatchPlayerOverride o WHERE o.matchId = :matchId AND o.teamId = :teamId AND o.slotPosition = :slotPosition")
     void deleteByMatchIdAndTeamIdAndSlotPosition(@Param("matchId") Long matchId, @Param("teamId") Long teamId, @Param("slotPosition") Integer slotPosition);
+
+    List<MatchPlayerOverride> findByAbsentPlayerId(Long absentPlayerId);
+
+    List<MatchPlayerOverride> findBySubPlayerId(Long subPlayerId);
 }

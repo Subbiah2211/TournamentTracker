@@ -30,4 +30,6 @@ public interface ResultRepository extends JpaRepository<Result, Long> {
 
     /** Used when we need to detect and clean up existing duplicate rows. */
     List<Result> findAllByMatchId(Long matchId);
+
+    List<Result> findByLastEditedByPlayerId(Long lastEditedByPlayerId);
 }

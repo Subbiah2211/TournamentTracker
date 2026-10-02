@@ -167,7 +167,7 @@ public class PlayerController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
 
-        if (playerRepository.findByEmailIgnoreCase(email).isPresent()) {
+        if (playerRepository.findByEmail(email).isPresent()) {
             response.put("success", false);
             response.put("message", "User with this email already exists");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -363,8 +363,10 @@ public class PlayerController {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
         }
 
+        String email = request.getEmail().trim();
+
         // 2. Email uniqueness check
-        if (playerRepository.findByEmail(request.getEmail().trim()).isPresent()) {
+        if (playerRepository.findByEmail(email).isPresent()) {
             response.put("success", false);
             response.put("message", "User email already exists");
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
@@ -387,7 +389,7 @@ public class PlayerController {
         Player player = new Player();
         player.setFirstName(request.getFirstName().trim());
         player.setLastName(request.getLastName().trim());
-        player.setEmail(request.getEmail().trim());
+        player.setEmail(email);
         player.setPhone(request.getPhone() != null ? request.getPhone().trim() : null);
         player.setGender(request.getGender() != null ? request.getGender().trim() : null);
         player.setAge(request.getAge() != null ? request.getAge().trim() : null);
@@ -442,7 +444,9 @@ public class PlayerController {
 
         Player player = existing.get();
         
-        Optional<Player> conflict = playerRepository.findByEmail(request.getEmail().trim());
+        String email = request.getEmail().trim();
+        
+        Optional<Player> conflict = playerRepository.findByEmail(email);
         if (conflict.isPresent() && !conflict.get().getId().equals(id)) {
             response.put("success", false);
             response.put("message", "User email already exists");
@@ -451,7 +455,7 @@ public class PlayerController {
 
         player.setFirstName(request.getFirstName().trim());
         player.setLastName(request.getLastName().trim());
-        player.setEmail(request.getEmail().trim());
+        player.setEmail(email);
         player.setPhone(request.getPhone() != null ? request.getPhone().trim() : null);
         player.setGender(request.getGender() != null ? request.getGender().trim() : null);
         player.setAge(request.getAge() != null ? request.getAge().trim() : null);

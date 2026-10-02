@@ -614,7 +614,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       groupId: groupId ? parseInt(groupId) : null,
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       phone: phone.trim() || null,
       gender: gender || null,
       age: age ? age.toString() : null,
@@ -666,7 +666,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       player1: {
         firstName: p1FirstName.trim(),
         lastName: p1LastName.trim(),
-        email: p1Email.trim(),
+        email: p1Email.trim().toLowerCase(),
         phone: p1Phone.trim() || null,
         gender: p1Gender || null,
         age: p1Age ? p1Age.toString() : null,
@@ -675,7 +675,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       player2: {
         firstName: p2FirstName.trim(),
         lastName: p2LastName.trim(),
-        email: p2Email.trim(),
+        email: p2Email.trim().toLowerCase(),
         phone: p2Phone.trim() || null,
         gender: p2Gender || null,
         age: p2Age ? p2Age.toString() : null,
@@ -724,7 +724,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       {
         firstName: g1FirstName.trim(),
         lastName: g1LastName.trim(),
-        email: g1Email.trim(),
+        email: g1Email.trim().toLowerCase(),
         phone: g1Phone.trim() || null,
         gender: g1Gender || null,
         age: g1Age ? g1Age.toString() : null,
@@ -733,7 +733,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       {
         firstName: g2FirstName.trim(),
         lastName: g2LastName.trim(),
-        email: g2Email.trim(),
+        email: g2Email.trim().toLowerCase(),
         phone: g2Phone.trim() || null,
         gender: g2Gender || null,
         age: g2Age ? g2Age.toString() : null,
@@ -742,7 +742,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       {
         firstName: g3FirstName.trim(),
         lastName: g3LastName.trim(),
-        email: g3Email.trim(),
+        email: g3Email.trim().toLowerCase(),
         phone: g3Phone.trim() || null,
         gender: g3Gender || null,
         age: g3Age ? g3Age.toString() : null,
@@ -754,7 +754,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       playersList.push({
         firstName: g4FirstName.trim(),
         lastName: g4LastName.trim(),
-        email: g4Email.trim(),
+        email: g4Email.trim().toLowerCase(),
         phone: g4Phone.trim() || null,
         gender: g4Gender || null,
         age: g4Age ? g4Age.toString() : null,
@@ -985,7 +985,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       divisionId: parseInt(divisionId),
       firstName: firstName.trim(),
       lastName: lastName.trim(),
-      email: email.trim(),
+      email: email.trim().toLowerCase(),
       phone: phone.trim() || null,
       gender: gender || null,
       age: age ? age.toString() : null,
@@ -1037,7 +1037,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       player1: {
         firstName: p1FirstName.trim(),
         lastName: p1LastName.trim(),
-        email: p1Email.trim(),
+        email: p1Email.trim().toLowerCase(),
         phone: p1Phone.trim() || null,
         gender: p1Gender || null,
         age: p1Age ? p1Age.toString() : null,
@@ -1046,7 +1046,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       player2: {
         firstName: p2FirstName.trim(),
         lastName: p2LastName.trim(),
-        email: p2Email.trim(),
+        email: p2Email.trim().toLowerCase(),
         phone: p2Phone.trim() || null,
         gender: p2Gender || null,
         age: p2Age ? p2Age.toString() : null,
@@ -1096,7 +1096,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       {
         firstName: g1FirstName.trim(),
         lastName: g1LastName.trim(),
-        email: g1Email.trim(),
+        email: g1Email.trim().toLowerCase(),
         phone: g1Phone.trim() || null,
         gender: g1Gender || null,
         age: g1Age ? g1Age.toString() : null,
@@ -1105,7 +1105,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       {
         firstName: g2FirstName.trim(),
         lastName: g2LastName.trim(),
-        email: g2Email.trim(),
+        email: g2Email.trim().toLowerCase(),
         phone: g2Phone.trim() || null,
         gender: g2Gender || null,
         age: g2Age ? g2Age.toString() : null,
@@ -1114,7 +1114,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       {
         firstName: g3FirstName.trim(),
         lastName: g3LastName.trim(),
-        email: g3Email.trim(),
+        email: g3Email.trim().toLowerCase(),
         phone: g3Phone.trim() || null,
         gender: g3Gender || null,
         age: g3Age ? g3Age.toString() : null,
@@ -1126,7 +1126,7 @@ export default function Players({ tournamentId, user, onNavigate }) {
       playersList.push({
         firstName: g4FirstName.trim(),
         lastName: g4LastName.trim(),
-        email: g4Email.trim(),
+        email: g4Email.trim().toLowerCase(),
         phone: g4Phone.trim() || null,
         gender: g4Gender || null,
         age: g4Age ? g4Age.toString() : null,
