@@ -9,6 +9,7 @@ import Matches from './components/Matches';
 import AddResult from './components/AddResult';
 import Standings from './components/Standings';
 import Courts from './components/Courts';
+import AdminPlayers from './components/AdminPlayers';
 import GuestAccessModal from './components/GuestAccessModal';
 import { API_BASE_URL } from './config';
 import './App.css';
@@ -73,6 +74,8 @@ function App() {
       url = '/home';
     } else if (page === 'courts') {
       url = '/courts';
+    } else if (page === 'admin-players') {
+      url = '/admin-players';
     } else if (page === 'login') {
       url = '/';
     }
@@ -142,6 +145,8 @@ function App() {
         targetTournamentId = params.get('tournamentId');
       } else if (path === '/courts') {
         targetPage = 'courts';
+      } else if (path === '/admin-players') {
+        targetPage = 'admin-players';
       } else if (path === '/home') {
         targetPage = 'home';
       } else if (path === '/') {
@@ -213,6 +218,8 @@ function App() {
           targetTournamentId = params.get('tournamentId');
         } else if (path === '/courts') {
           targetPage = 'courts';
+        } else if (path === '/admin-players') {
+          targetPage = 'admin-players';
         } else if (path === '/home') {
           targetPage = 'home';
         }
@@ -568,6 +575,11 @@ function App() {
           />
         ) : currentPage === 'courts' ? (
           <Courts 
+            user={user}
+            onNavigate={navigate}
+          />
+        ) : currentPage === 'admin-players' ? (
+          <AdminPlayers 
             user={user}
             onNavigate={navigate}
           />
