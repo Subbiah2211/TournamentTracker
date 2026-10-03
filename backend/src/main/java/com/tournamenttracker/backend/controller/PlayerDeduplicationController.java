@@ -43,13 +43,26 @@ public class PlayerDeduplicationController {
             @RequestParam(name = "dryRun", defaultValue = "true") boolean dryRun,
             @RequestParam(name = "email", required = false) String email) {
 
-        PlayerDeduplicationService.DeduplicationReport report;
-        if (email != null && !email.trim().isEmpty()) {
-            report = deduplicationService.deduplicateSingleEmail(email, dryRun);
-        } else {
-            report = deduplicationService.deduplicateAll(dryRun);
-        }
+        try {
+            PlayerDeduplicationService.DeduplicationReport report;
+            if (email != null && !email.trim().isEmpty()) {
+                report = deduplicationService.deduplicateSingleEmail(email, dryRun);
+            } else {
+                report = deduplicationService.deduplicateAll(dryRun);
+            }
 
-        return ResponseEntity.ok(report);
+            return ResponseEntity.ok(report);
+        } catch (Exception e) {
+            Map<String, Object> errorResponse = new HashMap<>();
+            errorResponse.put("success", false);
+            errorResponse.put("error", e.getClass().getSimpleName());
+            errorResponse.put("message", e.getMessage());
+            Throwable root = e;
+            while (root.getCause() != null && root.getCause() != root) {
+                root = root.getCause();
+            }
+            errorResponse.put("rootCause", root.getMessage());
+            return ResponseEntity.status(org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR).body(errorResponse);
+        }
     }
 }

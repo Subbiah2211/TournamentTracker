@@ -148,7 +148,7 @@ public class PlayerDeduplicationServiceTest {
 
         assertEquals("aaron.byron@tracker.com_deprecated_45", duplicatePlayer.getEmail());
         assertTrue(duplicatePlayer.getLastName().contains("(DEPRECATED)"));
-        verify(playerRepository).save(duplicatePlayer);
+        verify(playerRepository).saveAndFlush(duplicatePlayer);
     }
 
     @Test

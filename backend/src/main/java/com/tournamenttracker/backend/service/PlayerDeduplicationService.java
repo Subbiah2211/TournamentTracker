@@ -167,30 +167,34 @@ public class PlayerDeduplicationService {
         detail.setPrimaryPlayerId(primary.getId());
         detail.setPrimaryPlayerName(primary.getFirstName() + " " + (primary.getLastName() != null ? primary.getLastName() : ""));
 
-        // If not dry-run, normalize primary's email to lowercase
-        if (!dryRun && !email.equals(primary.getEmail())) {
-            primary.setEmail(email.toLowerCase().trim());
-            playerRepository.save(primary);
-        }
-
         for (int i = 1; i < players.size(); i++) {
             Player dup = players.get(i);
             detail.getDuplicatePlayerIds().add(dup.getId());
 
-            // 1. Process Participants (Singles)
+            // 1. Deprecate duplicate Player FIRST so that the email address is immediately released
+            // in the database, avoiding unique constraint collisions when referencing/updating primary.
+            deprecatePlayer(dup, dryRun, counters, detail.getActions());
+
+            // 2. Process Participants (Singles)
             processParticipants(primary, dup, dryRun, counters, detail.getActions());
 
-            // 2. Process Results (last_edited_by_player_id)
+            // 3. Process Results (last_edited_by_player_id)
             processResults(primary, dup, dryRun, counters, detail.getActions());
 
-            // 3. Process Team_Players (player_id)
+            // 4. Process Team_Players (player_id)
             processTeamPlayers(primary, dup, dryRun, counters, detail.getActions());
 
-            // 4. Process Match_Player_Overrides (absent_player_id & sub_player_id)
+            // 5. Process Match_Player_Overrides (absent_player_id & sub_player_id)
             processOverrides(primary, dup, dryRun, counters, detail.getActions());
+        }
 
-            // 5. Deprecate Player record
-            deprecatePlayer(dup, dryRun, counters, detail.getActions());
+        // 6. After ALL duplicates have been deprecated and flushed, safely normalize primary player's email
+        if (!dryRun) {
+            String normalizedEmail = email.toLowerCase().trim();
+            if (!normalizedEmail.equals(primary.getEmail())) {
+                primary.setEmail(normalizedEmail);
+                playerRepository.saveAndFlush(primary);
+            }
         }
 
         return detail;
@@ -361,7 +365,7 @@ public class PlayerDeduplicationService {
         if (!dryRun) {
             dup.setEmail(newEmail);
             dup.setLastName(newLastName);
-            playerRepository.save(dup);
+            playerRepository.saveAndFlush(dup);
         }
     }
 
