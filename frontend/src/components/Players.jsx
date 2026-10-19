@@ -29,6 +29,8 @@ export default function Players({ tournamentId, user, onNavigate }) {
   const [gender, setGender] = useState('');
   const [age, setAge] = useState('');
   const [skillLevel, setSkillLevel] = useState('3.0'); // default to 3.0
+  const [singlesSearchQuery, setSinglesSearchQuery] = useState('');
+  const [singlesSearchResults, setSinglesSearchResults] = useState([]);
 
   // Form states (Doubles Team)
   const [teamName, setTeamName] = useState('');
@@ -149,6 +151,23 @@ export default function Players({ tournamentId, user, onNavigate }) {
     };
   }, [tournamentId, reloadTrigger]);
 
+  // Debounced search for Singles Player
+  useEffect(() => {
+    if (!singlesSearchQuery.trim()) return;
+    const delay = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/players/search?q=${encodeURIComponent(singlesSearchQuery)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSinglesSearchResults(data);
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }, 250);
+    return () => clearTimeout(delay);
+  }, [singlesSearchQuery]);
+
   // Debounced search for Player 1 (Doubles)
   useEffect(() => {
     if (!p1SearchQuery.trim()) return;
@@ -252,12 +271,28 @@ export default function Players({ tournamentId, user, onNavigate }) {
   }, [g4SearchQuery]);
 
   const filterSearchResultsByGender = (results) => {
+    if (!results || !Array.isArray(results)) return [];
     if (!divisionId) return results;
     const div = divisions.find(d => d.id.toString() === divisionId);
     if (!div) return results;
     const divGender = div.gender;
     if (!divGender || divGender === 'Mixed' || divGender === 'Open') return results;
-    return results.filter(player => player.gender === divGender);
+
+    const normalize = (g) => {
+      if (!g) return '';
+      const s = g.trim().toLowerCase();
+      if (s === 'male' || s === 'men' || s === 'm') return 'male';
+      if (s === 'female' || s === 'women' || s === 'f') return 'female';
+      return s;
+    };
+
+    const targetGender = normalize(divGender);
+    if (!targetGender) return results;
+
+    return results.filter(player => {
+      if (!player.gender) return true; // Don't exclude players whose gender isn't yet recorded
+      return normalize(player.gender) === targetGender;
+    });
   };
 
   const fetchGroupsForDivision = async (divId) => {
@@ -343,6 +378,8 @@ export default function Players({ tournamentId, user, onNavigate }) {
     setGender('');
     setAge('');
     setSkillLevel('3.0');
+    setSinglesSearchQuery('');
+    setSinglesSearchResults([]);
     setValidationErrors({});
     setFormError('');
     setSubView('add-singles');
@@ -381,6 +418,18 @@ export default function Players({ tournamentId, user, onNavigate }) {
     setFormError('');
     setSubView('add-generic');
     if (firstDiv) fetchGroupsForDivision(firstDiv.id);
+  };
+
+  const selectSinglesPlayer = (player) => {
+    setFirstName(player.firstName || '');
+    setLastName(player.lastName || '');
+    setEmail(player.email || '');
+    setPhone(player.phone || '');
+    setGender(player.gender || '');
+    setAge(player.age || '');
+    setSkillLevel(player.skillLevel || '3.0');
+    setSinglesSearchQuery('');
+    setSinglesSearchResults([]);
   };
 
   const selectPlayer1 = (player) => {
@@ -1564,6 +1613,40 @@ export default function Players({ tournamentId, user, onNavigate }) {
                       + Add Group
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Autocomplete Search for Singles */}
+              {subView === 'add-singles' && (
+                <div className="form-group" style={{ position: 'relative' }}>
+                  <label htmlFor="singlesSearch" className="form-label">Search existing players</label>
+                  <input
+                    id="singlesSearch"
+                    type="text"
+                    placeholder="Type name to search existing players..."
+                    value={singlesSearchQuery}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setSinglesSearchQuery(val);
+                      if (!val.trim()) setSinglesSearchResults([]);
+                    }}
+                    className="form-input"
+                    disabled={formLoading}
+                  />
+                  {filterSearchResultsByGender(singlesSearchResults).length > 0 && (
+                    <div className="search-suggestions-list">
+                      {filterSearchResultsByGender(singlesSearchResults).map((player) => (
+                        <div
+                          key={player.id}
+                          className="search-suggestion-item"
+                          onClick={() => selectSinglesPlayer(player)}
+                        >
+                          <div className="suggestion-name">{player.firstName} {player.lastName}</div>
+                          <div className="suggestion-email">{player.email}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
 

@@ -54,14 +54,12 @@ public class PlayerController {
     @GetMapping("/players/search")
     public ResponseEntity<?> searchPlayers(@RequestParam(name = "q", defaultValue = "") String q) {
         if (q == null || q.trim().length() < 2) {
-            Map<String, String> err = new HashMap<>();
-            err.put("error", "Search query must be at least 2 characters");
-            return ResponseEntity.badRequest().body(err);
+            return ResponseEntity.ok(java.util.Collections.emptyList());
         }
         String trimmed = q.trim();
         List<Player> results = playerRepository
                 .findByFirstNameContainingIgnoreCaseOrLastNameContainingIgnoreCase(trimmed, trimmed);
-        // Limit to top 10 and return only needed fields
+        // Limit to top 10 and return needed fields for autofill & filtering
         List<Map<String, Object>> response = results.stream()
                 .limit(10)
                 .map(p -> {
@@ -70,6 +68,9 @@ public class PlayerController {
                     m.put("firstName", p.getFirstName());
                     m.put("lastName", p.getLastName());
                     m.put("email", p.getEmail());
+                    m.put("phone", p.getPhone());
+                    m.put("gender", p.getGender());
+                    m.put("age", p.getAge());
                     m.put("skillLevel", p.getSkillLevel());
                     return m;
                 })

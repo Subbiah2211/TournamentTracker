@@ -25,7 +25,14 @@ function App() {
   const [selectedTournamentId, setSelectedTournamentId] = useState(null);
   const [previousPage, setPreviousPage] = useState({ page: 'home', id: null });
   const [redirectAfterLogin, setRedirectAfterLogin] = useState(null);
-  const [currentSearchQuery, setCurrentSearchQuery] = useState(window.location.search);
+  const [currentSearchQuery, setCurrentSearchQuery] = useState(() => {
+    if (window.location.search) return window.location.search;
+    if (window.location.hash && window.location.hash.startsWith('#/')) {
+      const parts = window.location.hash.slice(1).split('?');
+      if (parts[1]) return `?${parts[1]}`;
+    }
+    return '';
+  });
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -108,12 +115,24 @@ function App() {
     setCurrentSearchQuery(searchPart);
   };
 
-  // URL Popstate Sync & Initial Load Router
-  useEffect(() => {
-    const handlePopState = () => {
-      const params = new URLSearchParams(window.location.search);
-      const path = window.location.pathname;
+  // Helper to resolve route info from pathname OR hash (for backwards-compatibility with #/ urls)
+  const getRouteInfo = () => {
+    let path = window.location.pathname;
+    let search = window.location.search;
 
+    if (window.location.hash && window.location.hash.startsWith('#/')) {
+      const hashContent = window.location.hash.slice(1); // e.g. "/matches?tournamentId=6"
+      const [hPath, hQuery] = hashContent.split('?');
+      path = hPath || '/';
+      search = hQuery ? `?${hQuery}` : '';
+    }
+
+    return { path, search, params: new URLSearchParams(search) };
+  };
+
+  // URL Popstate & Hash Sync & Initial Load Router
+  useEffect(() => {
+    const parseTargetRoute = (path, params) => {
       let targetPage = 'home';
       let targetId = null;
       let targetTournamentId = null;
@@ -153,7 +172,14 @@ function App() {
         targetPage = 'login';
       }
 
-      setCurrentSearchQuery(window.location.search);
+      return { targetPage, targetId, targetTournamentId, targetDivisionId };
+    };
+
+    const handlePopState = () => {
+      const { path, search, params } = getRouteInfo();
+      const { targetPage, targetId, targetTournamentId, targetDivisionId } = parseTargetRoute(path, params);
+
+      setCurrentSearchQuery(search);
 
       const isGuestAllowedPage = targetPage === 'matches' || targetPage === 'add-result';
       if (!user && targetPage !== 'login' && !isGuestAllowedPage) {
@@ -179,51 +205,15 @@ function App() {
     };
 
     window.addEventListener('popstate', handlePopState);
+    window.addEventListener('hashchange', handlePopState);
 
     // Initial routing logic check deferred to avoid synchronous setState warning
     setTimeout(() => {
-      const params = new URLSearchParams(window.location.search);
-      const path = window.location.pathname;
+      const { path, params } = getRouteInfo();
+      const { targetPage, targetId, targetTournamentId, targetDivisionId } = parseTargetRoute(path, params);
       
       const isGuestAllowedPath = path === '/matches' || path === '/add-result';
       if (path !== '/' && !user && !isGuestAllowedPath) {
-        let targetPage = 'home';
-        let targetId = null;
-        let targetTournamentId = null;
-        let targetDivisionId = null;
-
-        if (path === '/tour-details') {
-          targetPage = 'tour-details';
-          targetId = params.get('id');
-        } else if (path === '/edit-tournament') {
-          targetPage = 'edit-tournament';
-          targetId = params.get('id');
-        } else if (path === '/create-tournament') {
-          targetPage = 'create-tournament';
-        } else if (path === '/divisions') {
-          targetPage = 'divisions';
-          targetTournamentId = params.get('tournamentId');
-          targetDivisionId = params.get('divisionId');
-        } else if (path === '/players') {
-          targetPage = 'players';
-          targetTournamentId = params.get('tournamentId');
-        } else if (path === '/matches') {
-          targetPage = 'matches';
-          targetTournamentId = params.get('tournamentId');
-        } else if (path === '/add-result') {
-          targetPage = 'add-result';
-          targetTournamentId = params.get('tournamentId');
-        } else if (path === '/standings') {
-          targetPage = 'standings';
-          targetTournamentId = params.get('tournamentId');
-        } else if (path === '/courts') {
-          targetPage = 'courts';
-        } else if (path === '/admin-players') {
-          targetPage = 'admin-players';
-        } else if (path === '/home') {
-          targetPage = 'home';
-        }
-        
         setRedirectAfterLogin({ 
           page: targetPage, 
           params: { 
@@ -240,7 +230,10 @@ function App() {
       }
     }, 0);
 
-    return () => window.removeEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+      window.removeEventListener('hashchange', handlePopState);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user]);
 
